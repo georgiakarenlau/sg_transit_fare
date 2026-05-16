@@ -28,19 +28,21 @@ opti_map/
 │   ├── main.py              # FastAPI app — routing, fare calculation, OneMap calls
 │   ├── fare_calculator.py   # LTA 2024 distance-fare table lookup
 │   ├── requirements.txt
+│   ├── .env.example         # credential template
 │   └── .env                 # (not committed) — holds ONEMAP_EMAIL and ONEMAP_PASSWORD
-└── frontend/
-    ├── src/
-    │   ├── App.jsx           # Main component — map, search, route list
-    │   ├── components/
-    │   │   ├── RouteCard.jsx     # Individual route card with chip summary
-    │   │   └── LocationInput.jsx # Autocomplete input
-    │   └── index.css
-    ├── index.html
-    └── package.json
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx               # Main component — map, search, route list
+│   │   ├── components/
+│   │   │   ├── RouteCard.jsx     # Individual route card with chip summary
+│   │   │   └── LocationInput.jsx # Autocomplete input
+│   │   └── index.css
+│   ├── index.html
+│   └── package.json
+└── render.yaml              # Render.com deployment config (backend)
 ```
 
-## Setup
+## Local Setup
 
 ### Prerequisites
 
@@ -55,7 +57,7 @@ cd backend
 pip install -r requirements.txt
 ```
 
-Create a `.env` file in the `backend/` folder:
+Create a `.env` file in the `backend/` folder (see `.env.example`):
 
 ```
 ONEMAP_EMAIL=your@email.com
@@ -79,6 +81,40 @@ npm run dev
 ```
 
 The app runs at `http://localhost:5173`.
+
+---
+
+## Free Deployment (access from your phone anywhere)
+
+Deploy the backend to **Render** and the frontend to **Vercel** — both have free tiers.
+
+> **Note:** On the free Render tier the backend "sleeps" after 15 minutes of inactivity. The first request after idle takes ~30–60 seconds to wake up.
+
+### 1 — Deploy the backend to Render
+
+1. Go to [render.com](https://render.com) and sign up (free, no credit card).
+2. Click **New → Web Service** → **Connect a repository** → select `opti_map`.
+3. Render auto-reads `render.yaml` and fills in the settings. Confirm:
+   - **Root Directory:** `backend`
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
+4. Under **Environment Variables**, add:
+   - `ONEMAP_EMAIL` → your OneMap email
+   - `ONEMAP_PASSWORD` → your OneMap password
+5. Click **Deploy**. When it finishes, copy the URL — it looks like `https://optimap-backend.onrender.com`.
+
+### 2 — Deploy the frontend to Vercel
+
+1. Go to [vercel.com](https://vercel.com) and sign in with GitHub (free).
+2. Click **Add New → Project** → import `opti_map`.
+3. Set **Root Directory** to `frontend`.
+4. Under **Environment Variables**, add:
+   - `VITE_API_BASE` → the Render URL from step 1 (e.g. `https://optimap-backend.onrender.com`)
+5. Click **Deploy**. Vercel gives you a public URL like `https://opti-map.vercel.app`.
+
+Open that URL on your phone — no installation needed, works on any browser.
+
+---
 
 ## API Endpoints
 

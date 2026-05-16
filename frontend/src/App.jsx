@@ -20,7 +20,7 @@ import LocationInput from './components/LocationInput';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const API_BASE = 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000';
 
 // Official LTA MRT/LRT line colours.
 // Matched against leg.route (uppercased) with includes(), so partial matches work.

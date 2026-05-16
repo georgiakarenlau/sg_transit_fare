@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: optimap-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ONEMAP_EMAIL
+        sync: false          # set manually in the Render dashboard
+      - key: ONEMAP_PASSWORD
+        sync: false
