@@ -2,6 +2,8 @@
 
 A web app that finds and compares public transport routes across Singapore, with fare estimates, route visualisation, and multi-criteria optimisation.
 
+**Live app: [opti-map-amber.vercel.app](https://opti-map-amber.vercel.app/)**
+
 ## Features
 
 - **Route search** — type any MRT station, bus stop, or landmark; live autocomplete powered by OneMap
@@ -15,8 +17,8 @@ A web app that finds and compares public transport routes across Singapore, with
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18, Vite, react-leaflet, Leaflet.js |
-| Backend | Python 3.11+, FastAPI, httpx, Pydantic |
+| Frontend | React 18, Vite, react-leaflet, Leaflet.js — hosted on Vercel |
+| Backend | Python 3.11+, FastAPI, httpx, Pydantic — hosted on Render |
 | Routing data | OneMap API (Singapore Land Authority) |
 | Map tiles | CARTO Positron |
 
@@ -84,35 +86,45 @@ The app runs at `http://localhost:5173`.
 
 ---
 
-## Free Deployment (access from your phone anywhere)
+## Deployment
 
-Deploy the backend to **Render** and the frontend to **Vercel** — both have free tiers.
+The app is deployed for free using **Render** (backend) and **Vercel** (frontend).
 
-> **Note:** On the free Render tier the backend "sleeps" after 15 minutes of inactivity. The first request after idle takes ~30–60 seconds to wake up.
+| Service | URL |
+|---|---|
+| Frontend (Vercel) | https://opti-map-amber.vercel.app/ |
+| Backend (Render) | https://opti-map.onrender.com |
 
-### 1 — Deploy the backend to Render
+> **Note:** On the free Render tier the backend sleeps after 15 minutes of inactivity. The first request after idle takes ~30–60 seconds to wake up. You can check the backend is live at `/health`.
+
+### Re-deploying after code changes
+
+- **Frontend** — Vercel auto-deploys on every push to `main`. Nothing to do.
+- **Backend** — Render also auto-deploys on push. If it doesn't trigger, go to the Render dashboard → **Manual Deploy → Deploy latest commit**.
+
+### Setting up your own deployment
+
+#### 1 — Backend on Render
 
 1. Go to [render.com](https://render.com) and sign up (free, no credit card).
 2. Click **New → Web Service** → **Connect a repository** → select `opti_map`.
-3. Render auto-reads `render.yaml` and fills in the settings. Confirm:
+3. Set the following (Render may not auto-read `render.yaml` if set up manually):
    - **Root Directory:** `backend`
    - **Build Command:** `pip install -r requirements.txt`
    - **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
 4. Under **Environment Variables**, add:
    - `ONEMAP_EMAIL` → your OneMap email
    - `ONEMAP_PASSWORD` → your OneMap password
-5. Click **Deploy**. When it finishes, copy the URL — it looks like `https://optimap-backend.onrender.com`.
+5. Click **Deploy** and copy the service URL once it finishes.
 
-### 2 — Deploy the frontend to Vercel
+#### 2 — Frontend on Vercel
 
 1. Go to [vercel.com](https://vercel.com) and sign in with GitHub (free).
 2. Click **Add New → Project** → import `opti_map`.
 3. Set **Root Directory** to `frontend`.
 4. Under **Environment Variables**, add:
-   - `VITE_API_BASE` → the Render URL from step 1 (e.g. `https://optimap-backend.onrender.com`)
-5. Click **Deploy**. Vercel gives you a public URL like `https://opti-map.vercel.app`.
-
-Open that URL on your phone — no installation needed, works on any browser.
+   - `VITE_API_BASE` → your Render backend URL from step 1
+5. Click **Deploy**.
 
 ---
 
@@ -120,6 +132,7 @@ Open that URL on your phone — no installation needed, works on any browser.
 
 | Endpoint | Description |
 |---|---|
+| `GET /health` | Liveness check — returns `{"status":"ok"}` |
 | `GET /api/search?q=<query>` | Location autocomplete via OneMap |
 | `GET /api/routes?from=<loc>&to=<loc>&fare_type=<adult\|student\|senior>` | Returns up to 8 ranked route itineraries |
 
