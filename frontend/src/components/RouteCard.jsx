@@ -17,7 +17,22 @@ const MODE_NAMES = {
   TRAM:   'LRT',
 };
 
-// MRT chip colors — mirrors MRT_LINE_COLORS in App.jsx
+// Short codes that OneMap actually returns (e.g. "EW", "CC", "DT")
+const MRT_SHORT_COLORS = {
+  'NS': '#D42E12',
+  'EW': '#009645',
+  'CG': '#009645',
+  'CC': '#FA9E0D',
+  'CE': '#FA9E0D',
+  'DT': '#005EC4',
+  'TE': '#9D5B25',
+  'NE': '#9900AA',
+  'BP': '#748477',
+  'SK': '#9900AA',
+  'PU': '#9900AA',
+};
+
+// Full-name fallback
 const MRT_CHIP_COLORS = {
   'NORTH SOUTH LINE':        '#D42E12',
   'EAST WEST LINE':          '#009645',
@@ -31,7 +46,8 @@ const MRT_CHIP_COLORS = {
 };
 
 function getMrtColor(route) {
-  const upper = (route ?? '').toUpperCase();
+  const upper = (route ?? '').toUpperCase().trim();
+  if (MRT_SHORT_COLORS[upper]) return MRT_SHORT_COLORS[upper];
   for (const [key, color] of Object.entries(MRT_CHIP_COLORS)) {
     if (upper.includes(key)) return color;
   }

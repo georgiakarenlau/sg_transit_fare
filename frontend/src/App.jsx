@@ -23,18 +23,32 @@ import LocationInput from './components/LocationInput';
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000';
 
 // Official LTA MRT/LRT line colours.
-// Matched against leg.route (uppercased) with includes(), so partial matches work.
+// OneMap returns short codes ("EW", "CC", "DT" …) — checked first.
+// Full-name substrings are kept as a fallback.
+const MRT_SHORT_COLORS = {
+  'NS': '#D42E12',   // North South Line — red
+  'EW': '#009645',   // East West Line   — green
+  'CG': '#009645',   // Changi branch (EWL)
+  'CC': '#FA9E0D',   // Circle Line      — orange
+  'CE': '#FA9E0D',   // Circle Line ext.
+  'DT': '#005EC4',   // Downtown Line    — dark blue
+  'TE': '#9D5B25',   // Thomson-East Coast Line — brown
+  'NE': '#9900AA',   // North East Line  — purple
+  'BP': '#748477',   // Bukit Panjang LRT
+  'SK': '#9900AA',   // Sengkang LRT
+  'PU': '#9900AA',   // Punggol LRT
+};
+
 const MRT_LINE_COLORS = {
-  'NORTH SOUTH LINE':         '#D42E12',   // NSL  — red
-  'EAST WEST LINE':           '#009645',   // EWL  — green
-  'CIRCLE LINE':              '#FA9E0D',   // CCL  — orange
-  'DOWNTOWN LINE':            '#005EC4',   // DTL  — dark blue
-  'THOMSON-EAST COAST LINE':  '#9D5B25',   // TEL  — brown
-  'NORTH EAST LINE':          '#9900AA',   // NEL  — purple
-  // LRT services (keyed by partial route string returned by OTP)
-  'BUKIT PANJANG':            '#748477',   // BPL  — grey-green
-  'SENGKANG':                 '#9900AA',   // SRL  — NEL purple (interlined)
-  'PUNGGOL':                  '#9900AA',   // PRL  — NEL purple (interlined)
+  'NORTH SOUTH LINE':        '#D42E12',
+  'EAST WEST LINE':          '#009645',
+  'CIRCLE LINE':             '#FA9E0D',
+  'DOWNTOWN LINE':           '#005EC4',
+  'THOMSON-EAST COAST LINE': '#9D5B25',
+  'NORTH EAST LINE':         '#9900AA',
+  'BUKIT PANJANG':           '#748477',
+  'SENGKANG':                '#9900AA',
+  'PUNGGOL':                 '#9900AA',
 };
 
 const _WALK_STYLE = { color: '#94a3b8', weight: 2, dashArray: '5 7', opacity: 0.85 };
@@ -45,7 +59,10 @@ function getLegStyle(leg) {
   if (leg.mode === 'WALK') return _WALK_STYLE;
   if (leg.mode === 'BUS')  return _BUS_STYLE;
   if (leg.mode === 'SUBWAY' || leg.mode === 'TRAM') {
-    const upper = (leg.route ?? '').toUpperCase();
+    const upper = (leg.route ?? '').toUpperCase().trim();
+    // Short-code match first (what OneMap actually returns)
+    if (MRT_SHORT_COLORS[upper]) return { color: MRT_SHORT_COLORS[upper], weight: 5, opacity: 0.9 };
+    // Fallback: substring match on full line names
     for (const [key, color] of Object.entries(MRT_LINE_COLORS)) {
       if (upper.includes(key)) return { color, weight: 5, opacity: 0.9 };
     }
