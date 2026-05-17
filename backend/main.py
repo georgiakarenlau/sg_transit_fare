@@ -26,6 +26,7 @@ import asyncio
 import math
 import os
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from typing import Optional
 
 import httpx
@@ -294,7 +295,7 @@ async def _fetch_routes(
     token: str,
     num_itineraries: int,
     mode: str = "transit",
-    max_walk: int = 5000,
+    max_walk: int = 1000,
 ) -> dict:
     """
     Call the OneMap public transport routing API and return the raw response.
@@ -304,8 +305,10 @@ async def _fetch_routes(
 
     mode: "transit" (all modes) | "bus" (bus-only) | "rail" (MRT/LRT-only)
     """
-    today = datetime.now().strftime("%m-%d-%Y")   # OneMap PT routing expects MM-DD-YYYY
-    now_time = datetime.now().strftime("%H:%M:%S")
+    # OneMap PT routing requires Singapore local time (UTC+8), not server time.
+    now_sg = datetime.now(ZoneInfo("Asia/Singapore"))
+    today    = now_sg.strftime("%m-%d-%Y")   # MM-DD-YYYY
+    now_time = now_sg.strftime("%H:%M:%S")   # HH:MM:SS
 
     params = {
         "start": f"{start_lat},{start_lon}",
@@ -313,7 +316,7 @@ async def _fetch_routes(
         "routeType": "pt",
         "date": today,
         "time": now_time,
-        "mode": mode,
+        "mode": mode.upper(),   # OneMap requires uppercase: TRANSIT / BUS / RAIL
         "maxWalkDistance": max_walk,
         "numItineraries": num_itineraries,
     }
@@ -622,11 +625,11 @@ async def get_routes(
     try:
         raw_results = await asyncio.gather(
             _fetch_routes(from_lat, from_lon, to_lat, to_lon, token,
-                          num_itineraries=3, mode="transit", max_walk=5000),
+                          num_itineraries=3, mode="transit", max_walk=1000),
             _fetch_routes(from_lat, from_lon, to_lat, to_lon, token,
-                          num_itineraries=3, mode="bus",     max_walk=5000),
+                          num_itineraries=3, mode="bus",     max_walk=1000),
             _fetch_routes(from_lat, from_lon, to_lat, to_lon, token,
-                          num_itineraries=3, mode="rail",    max_walk=5000),
+                          num_itineraries=3, mode="rail",    max_walk=1000),
             # Short-walk call: caps walking at 500 m, forcing OTP to use nearby
             # bus stops instead of routing to a distant MRT on foot.  Surfaces
             # cheaper bus-first routes that the time-optimised transit call misses.
