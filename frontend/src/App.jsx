@@ -123,7 +123,7 @@ export default function App() {
   const sortedRoutes = routeData
     ? [...routeData.routes].sort((a, b) => {
         if (optimizeBy === 'fare')
-          return a.fare.adult_ezlink_cents - b.fare.adult_ezlink_cents
+          return a.fare.fare_cents - b.fare.fare_cents
               || a.duration_minutes - b.duration_minutes;
         if (optimizeBy === 'transfers')
           return a.transfers - b.transfers
@@ -346,6 +346,7 @@ export default function App() {
                     isSelected={i === selectedIdx}
                     onSelect={() => setSelectedIdx(i)}
                     badge={i === 0 ? BADGE_LABELS[optimizeBy] : null}
+                    fareType={fareType}
                   />
                 ))}
               </div>

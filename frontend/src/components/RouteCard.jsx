@@ -57,10 +57,17 @@ function chipLabel(leg) {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
-export default function RouteCard({ route, index, isSelected, onSelect, badge }) {
-  const fare     = route.fare.adult_ezlink_sgd.toFixed(2);
+const FARE_LABELS = {
+  adult:   'Adult EZ-Link',
+  student: 'Student Concession',
+  senior:  'Senior Concession',
+};
+
+export default function RouteCard({ route, index, isSelected, onSelect, badge, fareType }) {
+  const fare     = route.fare.fare_sgd.toFixed(2);
   const duration = Math.round(route.duration_minutes);
   const { transfers, legs, fare: fareInfo } = route;
+  const fareLabel = FARE_LABELS[fareType] ?? 'EZ-Link';
 
   const transferLabel =
     transfers === 0 ? 'Direct' : `${transfers} transfer${transfers !== 1 ? 's' : ''}`;
@@ -88,7 +95,7 @@ export default function RouteCard({ route, index, isSelected, onSelect, badge })
         </div>
         <div className="rc-fare">
           <span className="rc-fare-amount">${fare}</span>
-          <span className="rc-fare-label">Adult EZ-Link</span>
+          <span className="rc-fare-label">{fareLabel}</span>
         </div>
       </div>
 
