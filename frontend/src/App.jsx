@@ -357,7 +357,7 @@ export default function App() {
       </main>
 
       <footer className="app-footer">
-        Fares are indicative — Adult EZ-Link, 2024 LTA table. Always verify before travel.
+        Fares are indicative — 2026 LTA fare tables. Always verify before travel.
       </footer>
     </div>
   );
