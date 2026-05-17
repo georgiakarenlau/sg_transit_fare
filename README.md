@@ -134,7 +134,7 @@ The app is deployed for free using **Render** (backend) and **Vercel** (frontend
 |---|---|
 | `GET /health` | Liveness check — returns `{"status":"ok"}` |
 | `GET /api/search?q=<query>` | Location autocomplete via OneMap |
-| `GET /api/routes?from=<loc>&to=<loc>&fare_type=<adult\|student\|senior>` | Returns up to 8 ranked route itineraries |
+| `GET /api/routes?from=<loc>&to=<loc>` | Returns up to 8 ranked route itineraries (adult EZ-Link fares) |
 
 ## Fare Accuracy Notes
 

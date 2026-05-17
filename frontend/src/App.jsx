@@ -106,8 +106,6 @@ export default function App() {
   // Search form
   const [fromInput, setFromInput] = useState('');
   const [toInput,   setToInput]   = useState('');
-  const [fareType,  setFareType]  = useState('adult');
-
   // API result + UI state
   const [routeData,    setRouteData]    = useState(null);  // full API response
   const [selectedIdx,  setSelectedIdx]  = useState(0);     // highlighted card index
@@ -153,7 +151,7 @@ export default function App() {
 
     try {
       const { data } = await axios.get(`${API_BASE}/api/routes`, {
-        params: { from, to, fare_type: fareType },
+        params: { from, to },
       });
       setRouteData(data);
       setSelectedIdx(0);
@@ -208,19 +206,6 @@ export default function App() {
                 value={toInput}
                 onChange={setToInput}
               />
-
-              <div className="input-group input-group--narrow">
-                <label htmlFor="fare-type">Fare type</label>
-                <select
-                  id="fare-type"
-                  value={fareType}
-                  onChange={e => setFareType(e.target.value)}
-                >
-                  <option value="adult">Adult</option>
-                  <option value="student">Student</option>
-                  <option value="senior">Senior</option>
-                </select>
-              </div>
 
               <button
                 type="submit"
@@ -346,7 +331,6 @@ export default function App() {
                     isSelected={i === selectedIdx}
                     onSelect={() => setSelectedIdx(i)}
                     badge={i === 0 ? BADGE_LABELS[optimizeBy] : null}
-                    fareType={fareType}
                   />
                 ))}
               </div>

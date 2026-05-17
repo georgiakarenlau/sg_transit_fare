@@ -35,7 +35,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from fare_calculator import FareType, JourneyType, calculate_fare
+from fare_calculator import JourneyType, calculate_fare
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Geometry helpers
@@ -372,7 +372,6 @@ class RouteLeg(BaseModel):
 class FareInfo(BaseModel):
     fare_sgd: float             # e.g. 1.47
     fare_cents: int             # e.g. 147  (integer — authoritative value)
-    fare_type: str              # "adult" | "student" | "senior"
     journey_type: str           # "MRT" | "Bus" | "Integrated"
     transit_distance_km: float  # Distance used for the fare calculation
 
@@ -514,7 +513,7 @@ def _compute_fare_distance_m(raw_legs: list[dict]) -> float:
     return total_m
 
 
-def _parse_itinerary(itinerary: dict, fare_type: FareType = FareType.ADULT) -> Route:
+def _parse_itinerary(itinerary: dict) -> Route:
     """Convert a single OneMap itinerary dict into our Route response model."""
     raw_legs = itinerary.get("legs", [])
 
@@ -551,7 +550,7 @@ def _parse_itinerary(itinerary: dict, fare_type: FareType = FareType.ADULT) -> R
 
     # Guard against edge case where API returns zero transit distance.
     fare_distance_km = max(transit_distance_km, 0.1)
-    fare = calculate_fare(fare_distance_km, journey_type, fare_type)
+    fare = calculate_fare(fare_distance_km, journey_type)
 
     return Route(
         duration_minutes=round(itinerary.get("duration", 0) / 60, 1),
@@ -560,7 +559,6 @@ def _parse_itinerary(itinerary: dict, fare_type: FareType = FareType.ADULT) -> R
         fare=FareInfo(
             fare_sgd=fare.fare_sgd,
             fare_cents=fare.fare_cents,
-            fare_type=fare.fare_type.value,
             journey_type=fare.journey_type.value,
             transit_distance_km=fare.distance_km,
         ),
@@ -586,7 +584,6 @@ async def get_routes(
         description="Destination location (name, address, or postal code)",
         example="Changi Airport Terminal 3",
     ),
-    fare_type: FareType = Query(FareType.ADULT, description="Fare concession type"),
 ):
     """
     Return public transport routes between two Singapore locations.
@@ -669,7 +666,7 @@ async def get_routes(
             detail=f"{detail} {coords}",
         )
 
-    routes = [_parse_itinerary(it, fare_type) for it in itineraries]
+    routes = [_parse_itinerary(it) for it in itineraries]
 
     return RoutesResponse(
         from_location=from_location,
