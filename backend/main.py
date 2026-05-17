@@ -25,7 +25,6 @@ OneMap API used:
 import asyncio
 import math
 import os
-import time
 from datetime import datetime
 from typing import Optional
 
@@ -110,44 +109,47 @@ app.add_middleware(
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# OneMap authentication (token cached in memory)
+# OneMap authentication
 # ──────────────────────────────────────────────────────────────────────────────
+
+import logging
 
 ONEMAP_BASE = "https://www.onemap.gov.sg/api"
 _ONEMAP_EMAIL = os.getenv("ONEMAP_EMAIL")
 _ONEMAP_PASSWORD = os.getenv("ONEMAP_PASSWORD")
 
-# Module-level cache: { "access_token": str | None, "expiry": float (unix ts) }
-_token_cache: dict = {"access_token": None, "expiry": 0.0}
-
 
 async def _get_token() -> str:
-    """
-    Return a valid OneMap Bearer token, refreshing it only when expired.
-
-    OneMap tokens include an expiry_timestamp (Unix seconds). We refresh
-    60 seconds early to avoid using a token that expires mid-request.
-    """
-    if _token_cache["access_token"] and _token_cache["expiry"] > time.time() + 60:
-        return _token_cache["access_token"]
-
+    """Fetch a fresh OneMap Bearer token on every call (tokens expire every 3 days)."""
     if not _ONEMAP_EMAIL or not _ONEMAP_PASSWORD:
         raise HTTPException(
             status_code=500,
-            detail="Server misconfiguration: ONEMAP_EMAIL / ONEMAP_PASSWORD not set in .env",
+            detail="Server misconfiguration: ONEMAP_EMAIL / ONEMAP_PASSWORD not set in environment.",
         )
 
-    async with httpx.AsyncClient(timeout=10) as client:
-        resp = await client.post(
-            f"{ONEMAP_BASE}/auth/post/getToken",
-            json={"email": _ONEMAP_EMAIL, "password": _ONEMAP_PASSWORD},
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.post(
+                f"{ONEMAP_BASE}/auth/post/getToken",
+                json={"email": _ONEMAP_EMAIL, "password": _ONEMAP_PASSWORD},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+    except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+        logging.error("OneMap auth failed: %s", exc)
+        raise HTTPException(
+            status_code=502,
+            detail="OneMap authentication failed — check your credentials.",
         )
-        resp.raise_for_status()
-        data = resp.json()
 
-    _token_cache["access_token"] = data["access_token"]
-    _token_cache["expiry"] = float(data["expiry_timestamp"])
-    return _token_cache["access_token"]
+    token = data.get("access_token")
+    if not token:
+        logging.error("OneMap auth response missing access_token: %s", data)
+        raise HTTPException(
+            status_code=502,
+            detail="OneMap authentication failed — check your credentials.",
+        )
+    return token
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -324,7 +326,6 @@ async def _fetch_routes(
         )
 
         if not resp.is_success:
-            # Include OneMap's own response body so errors are debuggable.
             body = resp.text[:400]
             if resp.status_code == 404:
                 raise HTTPException(
@@ -336,7 +337,14 @@ async def _fetch_routes(
                 detail=f"OneMap routing returned {resp.status_code}: {body}",
             )
 
-    return resp.json()
+    data = resp.json()
+    if "error" in data:
+        logging.error("OneMap routing error response (mode=%s): %s", mode, data)
+        raise HTTPException(
+            status_code=502,
+            detail=f"OneMap routing error: {data['error']}",
+        )
+    return data
 
 
 # ──────────────────────────────────────────────────────────────────────────────
