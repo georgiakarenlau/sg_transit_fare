@@ -1,46 +1,53 @@
-/**
- * LocationInput — a text input with live autocomplete from the OneMap search API.
- *
- * Props:
- *   id          {string}   — <label for> / <input id>
- *   label       {string}   — label text above the input
- *   placeholder {string}   — placeholder text
- *   value       {string}   — controlled value
- *   onChange    {function} — called with a plain string (not an event) on change
- */
-
 import { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000';
-const DEBOUNCE_MS = 300;   // wait after last keystroke before fetching
+const DEBOUNCE_MS = 250;
 
 export default function LocationInput({ id, label, placeholder, value, onChange }) {
-  const [suggestions, setSuggestions]       = useState([]);
-  const [showDropdown, setShowDropdown]     = useState(false);
-  const [activeSuggestion, setActive]       = useState(-1);  // keyboard nav index
+  const [suggestions, setSuggestions] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [activeSuggestion, setActive] = useState(-1);
+
   const wrapperRef  = useRef(null);
   const debounceRef = useRef(null);
+  const abortRef    = useRef(null);   // AbortController for the in-flight request
+  const skipRef     = useRef(false);  // true for one render after a selection
 
-  // ── Fetch suggestions (debounced) ────────────────────────────────────────────
+  // ── Fetch suggestions ─────────────────────────────────────────────────────
   useEffect(() => {
     clearTimeout(debounceRef.current);
 
+    // Suppress the search triggered by programmatically setting the value
+    // after the user selects a suggestion.
+    if (skipRef.current) {
+      skipRef.current = false;
+      return;
+    }
+
     if (value.trim().length < 2) {
+      abortRef.current?.abort();
       setSuggestions([]);
       setShowDropdown(false);
       return;
     }
 
     debounceRef.current = setTimeout(async () => {
+      // Cancel any previous in-flight request so stale responses never
+      // overwrite newer results.
+      abortRef.current?.abort();
+      abortRef.current = new AbortController();
+
       try {
         const { data } = await axios.get(`${API_BASE}/api/search`, {
           params: { q: value.trim() },
+          signal: abortRef.current.signal,
         });
         setSuggestions(data);
         setShowDropdown(data.length > 0);
         setActive(-1);
-      } catch {
+      } catch (err) {
+        if (err.code === 'ERR_CANCELED') return; // aborted — ignore silently
         setSuggestions([]);
         setShowDropdown(false);
       }
@@ -49,29 +56,26 @@ export default function LocationInput({ id, label, placeholder, value, onChange 
     return () => clearTimeout(debounceRef.current);
   }, [value]);
 
-  // ── Close dropdown when user clicks outside ───────────────────────────────────
-  useEffect(() => {
-    function onClickOutside(e) {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
-        setShowDropdown(false);
-      }
-    }
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, []);
+  // ── Close when focus leaves this component ────────────────────────────────
+  // onBlur fires AFTER onMouseDown, so a suggestion click is already handled
+  // by select() before this runs — closing here is always safe.
+  function onBlur() {
+    setShowDropdown(false);
+  }
 
-  // ── Select a suggestion ───────────────────────────────────────────────────────
+  // ── Select a suggestion ───────────────────────────────────────────────────
   function select(suggestion) {
+    abortRef.current?.abort();  // cancel any pending request
+    skipRef.current = true;     // skip the useEffect triggered by onChange below
     onChange(suggestion.name);
     setShowDropdown(false);
     setSuggestions([]);
     setActive(-1);
   }
 
-  // ── Keyboard navigation (↑ ↓ Enter Escape) ───────────────────────────────────
+  // ── Keyboard navigation ───────────────────────────────────────────────────
   function onKeyDown(e) {
     if (!showDropdown) return;
-
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       setActive(i => Math.min(i + 1, suggestions.length - 1));
@@ -86,7 +90,7 @@ export default function LocationInput({ id, label, placeholder, value, onChange 
     }
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────────
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="input-group" ref={wrapperRef}>
       <label htmlFor={id}>{label}</label>
@@ -100,6 +104,7 @@ export default function LocationInput({ id, label, placeholder, value, onChange 
           autoComplete="off"
           onChange={e => onChange(e.target.value)}
           onFocus={() => suggestions.length > 0 && setShowDropdown(true)}
+          onBlur={onBlur}
           onKeyDown={onKeyDown}
         />
 
@@ -111,8 +116,6 @@ export default function LocationInput({ id, label, placeholder, value, onChange 
                 role="option"
                 aria-selected={i === activeSuggestion}
                 className={`suggestion-item${i === activeSuggestion ? ' active' : ''}`}
-                // onMouseDown fires before onBlur, so the click is registered
-                // before the dropdown closes.
                 onMouseDown={() => select(s)}
               >
                 <span className="suggestion-name">{s.name}</span>
