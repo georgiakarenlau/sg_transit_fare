@@ -362,6 +362,7 @@ class LatLon(BaseModel):
 class RouteLeg(BaseModel):
     mode: str                       # WALK | BUS | SUBWAY | TRAM | …
     route: Optional[str]            # Bus number or MRT line name; None for walking
+    alt_routes: list[str] = []      # Alternative bus services that serve the same leg
     from_stop: str
     to_stop: str
     duration_minutes: float
@@ -413,6 +414,59 @@ def _itinerary_fingerprint(itinerary: dict) -> str:
         to_stp   = leg.get("to",   {}).get("name", "")
         parts.append(f"{mode}|{route}|{from_stp}|{to_stp}")
     return "::".join(parts)
+
+
+def _structural_fingerprint(itinerary: dict) -> str:
+    """
+    Like _itinerary_fingerprint but ignores bus route numbers.
+    Two itineraries that use different buses between the same stops
+    (e.g. Bus 93 vs Bus 186, both Blk 97 → Farrer Road) get the same fingerprint
+    so they can be merged into one grouped route option.
+    """
+    parts = []
+    for leg in itinerary.get("legs", []):
+        mode = leg.get("mode", "WALK")
+        if mode == "WALK":
+            continue
+        from_stp = leg.get("from", {}).get("name", "")
+        to_stp   = leg.get("to",   {}).get("name", "")
+        if mode == "BUS":
+            parts.append(f"BUS|{from_stp}|{to_stp}")
+        else:
+            route = leg.get("route") or leg.get("routeId") or ""
+            parts.append(f"{mode}|{route}|{from_stp}|{to_stp}")
+    return "::".join(parts)
+
+
+def _group_itineraries(
+    itineraries: list[dict],
+) -> list[tuple[dict, dict[int, list[str]]]]:
+    """
+    Group itineraries by structural fingerprint and collect bus route alternatives.
+
+    Returns a list of (base_itinerary, leg_alts) where leg_alts maps
+    leg index → list of alternative route strings for that bus leg.
+    """
+    seen: dict[str, int] = {}   # structural_fp -> index in result
+    result: list[tuple[dict, dict[int, list[str]]]] = []
+
+    for it in itineraries:
+        fp = _structural_fingerprint(it)
+        if fp not in seen:
+            seen[fp] = len(result)
+            result.append((it, {}))
+        else:
+            _, alts = result[seen[fp]]
+            base_legs = result[seen[fp]][0].get("legs", [])
+            for i, (bl, il) in enumerate(zip(base_legs, it.get("legs", []))):
+                if il.get("mode") != "BUS":
+                    continue
+                it_route   = il.get("route") or il.get("routeId") or ""
+                base_route = bl.get("route") or bl.get("routeId") or ""
+                if it_route and it_route != base_route and it_route not in alts.get(i, []):
+                    alts.setdefault(i, []).append(it_route)
+
+    return result
 
 
 def _classify_journey(legs: list[dict]) -> JourneyType:
@@ -513,14 +567,17 @@ def _compute_fare_distance_m(raw_legs: list[dict]) -> float:
     return total_m
 
 
-def _parse_itinerary(itinerary: dict) -> Route:
+def _parse_itinerary(
+    itinerary: dict,
+    leg_alts: Optional[dict[int, list[str]]] = None,
+) -> Route:
     """Convert a single OneMap itinerary dict into our Route response model."""
     raw_legs = itinerary.get("legs", [])
 
     parsed_legs: list[RouteLeg] = []
     transit_distance_m = _compute_fare_distance_m(raw_legs)
 
-    for leg in raw_legs:
+    for idx, leg in enumerate(raw_legs):
         mode      = leg.get("mode", "WALK")
         distance_m = leg.get("distance", 0.0)
         duration_s = leg.get("duration", 0.0)
@@ -528,6 +585,7 @@ def _parse_itinerary(itinerary: dict) -> Route:
         to_info    = leg.get("to",   {})
 
         route_label = leg.get("route") or leg.get("routeId") or None
+        alt_routes  = (leg_alts or {}).get(idx, [])
 
         encoded_geom = leg.get("legGeometry", {}).get("points", "")
         try:
@@ -538,6 +596,7 @@ def _parse_itinerary(itinerary: dict) -> Route:
         parsed_legs.append(RouteLeg(
             mode=mode,
             route=route_label,
+            alt_routes=alt_routes,
             from_stop=from_info.get("name", ""),
             to_stop=to_info.get("name", ""),
             duration_minutes=round(duration_s / 60, 1),
@@ -640,9 +699,9 @@ async def get_routes(
     except httpx.RequestError as exc:
         raise HTTPException(status_code=502, detail=f"Could not reach OneMap routing service: {exc}")
 
-    # --- Step 3: combine and deduplicate itineraries ---
-    itineraries: list[dict] = []
-    seen: set[str] = set()
+    # --- Step 3: combine, deduplicate, then group by structure ---
+    unique_itineraries: list[dict] = []
+    seen_exact: set[str] = set()
     first_error: HTTPException | None = None
 
     for result in raw_results:
@@ -654,11 +713,11 @@ async def get_routes(
             continue
         for it in result.get("plan", {}).get("itineraries", []):
             fp = _itinerary_fingerprint(it)
-            if fp not in seen:
-                seen.add(fp)
-                itineraries.append(it)
+            if fp not in seen_exact:
+                seen_exact.add(fp)
+                unique_itineraries.append(it)
 
-    if not itineraries:
+    if not unique_itineraries:
         detail = (first_error.detail if first_error
                   else "No public transport routes found between these locations.")
         raise HTTPException(
@@ -666,7 +725,10 @@ async def get_routes(
             detail=f"{detail} {coords}",
         )
 
-    routes = [_parse_itinerary(it) for it in itineraries]
+    # Group itineraries that share the same route structure but differ only in
+    # which bus service runs a leg (e.g. Bus 93 vs Bus 186, same stops).
+    grouped = _group_itineraries(unique_itineraries)
+    routes = [_parse_itinerary(base, alts) for base, alts in grouped]
 
     return RoutesResponse(
         from_location=from_location,
