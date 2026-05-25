@@ -118,6 +118,46 @@ function MapFitter({ points, fitKey }) {
   return null;
 }
 
+// ── RouteLineLabels ───────────────────────────────────────────────────────────
+// Renders a coloured pill at the midpoint of each transit leg showing the
+// bus number or MRT line name.
+
+function RouteLineLabels({ legs }) {
+  const items = [];
+
+  for (let i = 0; i < legs.length; i++) {
+    const leg = legs[i];
+    if (leg.mode === 'WALK' || leg.geometry.length < 2) continue;
+
+    const g   = leg.geometry;
+    const mid = g[Math.floor(g.length / 2)];
+    const color = getLegStyle(leg).color;
+
+    let label;
+    if (leg.mode === 'BUS') {
+      const num = (leg.route ?? '').replace(/^.*?\bBUS\s+/i, '').trim() || (leg.route ?? '');
+      label = num ? `Bus ${num}` : 'Bus';
+    } else {
+      label = leg.route ?? (leg.mode === 'SUBWAY' ? 'MRT' : leg.mode);
+    }
+
+    items.push(
+      <Marker
+        key={i}
+        position={mid}
+        icon={L.divIcon({
+          className: '',
+          html: `<div class="route-line-label" style="background:${color}">${label}</div>`,
+          iconSize:   [0, 0],
+          iconAnchor: [0, 0],
+        })}
+      />
+    );
+  }
+
+  return <>{items}</>;
+}
+
 // ── StopLabels ────────────────────────────────────────────────────────────────
 // Renders a dot + name at every transit boarding/alighting point.
 // MRT/LRT labels are always visible; bus stop labels appear only at zoom ≥ 15.
@@ -330,6 +370,7 @@ export default function App() {
                       />
                     );
                   })}
+                  <RouteLineLabels legs={route.legs} />
                   <StopLabels legs={route.legs} />
                   {allPts.length >= 2 && (
                     <MapFitter points={allPts} fitKey={fitKey} />
