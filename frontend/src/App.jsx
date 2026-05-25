@@ -129,17 +129,18 @@ function RouteLineLabels({ legs }) {
     const leg = legs[i];
     if (leg.mode === 'WALK' || leg.geometry.length < 2) continue;
 
+    // Only label bus legs — MRT/LRT lines are already identified by their colour.
+    if (leg.mode !== 'BUS') continue;
+
     const g   = leg.geometry;
     const mid = g[Math.floor(g.length / 2)];
-    const color = getLegStyle(leg).color;
 
-    let label;
-    if (leg.mode === 'BUS') {
-      const num = (leg.route ?? '').replace(/^.*?\bBUS\s+/i, '').trim() || (leg.route ?? '');
-      label = num ? `Bus ${num}` : 'Bus';
-    } else {
-      label = leg.route ?? (leg.mode === 'SUBWAY' ? 'MRT' : leg.mode);
-    }
+    // The bus polyline is light green (#86efac) which has poor contrast with
+    // white text, so use a fixed dark green for the label background instead.
+    const color = '#15803d';
+
+    const num = (leg.route ?? '').replace(/^.*?\bBUS\s+/i, '').trim() || (leg.route ?? '');
+    const label = num ? `Bus ${num}` : 'Bus';
 
     items.push(
       <Marker
