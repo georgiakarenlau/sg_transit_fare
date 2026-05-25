@@ -11,6 +11,7 @@
 import { useState, useEffect } from 'react';
 import {
   MapContainer, TileLayer, Marker, Popup, Polyline, useMap,
+  CircleMarker, Tooltip, useMapEvents,
 } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -115,6 +116,67 @@ function MapFitter({ points, fitKey }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, fitKey]);
   return null;
+}
+
+// ── StopLabels ────────────────────────────────────────────────────────────────
+// Renders a dot + name at every transit boarding/alighting point.
+// MRT/LRT labels are always visible; bus stop labels appear only at zoom ≥ 15.
+
+function StopLabels({ legs }) {
+  const map = useMap();
+  const [zoom, setZoom] = useState(() => map.getZoom());
+  useMapEvents({ zoomend() { setZoom(map.getZoom()); } });
+
+  const markers = [];
+  const seen = new Set();
+
+  for (const leg of legs) {
+    if (leg.mode === 'WALK') continue;
+    const isMrt = leg.mode === 'SUBWAY' || leg.mode === 'TRAM';
+    const showLabel = isMrt || zoom >= 15;
+
+    const endpoints = [
+      [leg.geometry[0],                          leg.from_stop],
+      [leg.geometry[leg.geometry.length - 1],    leg.to_stop],
+    ];
+
+    for (const [coord, name] of endpoints) {
+      if (!coord) continue;
+      const key = `${coord[0].toFixed(5)},${coord[1].toFixed(5)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      markers.push({ coord, name, isMrt, showLabel });
+    }
+  }
+
+  return (
+    <>
+      {markers.map(({ coord, name, isMrt, showLabel }, i) => (
+        <CircleMarker
+          key={i}
+          center={coord}
+          radius={isMrt ? 6 : 4}
+          pathOptions={{
+            color:       isMrt ? '#1e293b' : '#64748b',
+            fillColor:   '#ffffff',
+            fillOpacity: 1,
+            weight:      2,
+          }}
+        >
+          {showLabel && (
+            <Tooltip
+              permanent
+              direction="top"
+              offset={[0, -8]}
+              className={`stop-label${isMrt ? ' stop-label--mrt' : ''}`}
+            >
+              {name}
+            </Tooltip>
+          )}
+        </CircleMarker>
+      ))}
+    </>
+  );
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
@@ -277,6 +339,7 @@ export default function App() {
                       />
                     );
                   })}
+                  <StopLabels legs={route.legs} />
                   {allPts.length >= 2 && (
                     <MapFitter points={allPts} fitKey={fitKey} />
                   )}

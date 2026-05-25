@@ -59,19 +59,12 @@ function cleanBusRoute(route) {
   return (route ?? '').replace(/^.*?\bBUS\s+/i, '').trim() || (route ?? '');
 }
 
-/** All cleaned bus numbers for a leg, primary first. */
-function busNumbers(leg) {
-  const primary = cleanBusRoute(leg.route);
-  const alts    = (leg.alt_routes ?? []).map(cleanBusRoute).filter(Boolean);
-  return [primary, ...alts].filter(Boolean);
-}
-
 /** Short label used inside the journey-summary chips. */
 function chipLabel(leg) {
   if (leg.mode === 'WALK') return `Walk ${Math.round(leg.duration_minutes)} min`;
   if (leg.mode === 'BUS') {
-    const nums = busNumbers(leg);
-    return nums.length > 0 ? `Bus ${nums.join(' / ')}` : 'Bus';
+    const num = cleanBusRoute(leg.route);
+    return num ? `Bus ${num}` : 'Bus';
   }
   if (leg.mode === 'SUBWAY' || leg.mode === 'TRAM') return leg.route ?? 'MRT';
   const name = MODE_NAMES[leg.mode] ?? leg.mode;
@@ -146,7 +139,7 @@ export default function RouteCard({ route, index, isSelected, onSelect, badge })
                 {MODE_NAMES[leg.mode] ?? leg.mode}
                 {leg.route && (
                   <strong>
-                    {' '}{leg.mode === 'BUS' ? busNumbers(leg).join(' / ') : leg.route}
+                    {' '}{leg.mode === 'BUS' ? cleanBusRoute(leg.route) : leg.route}
                   </strong>
                 )}
               </span>
