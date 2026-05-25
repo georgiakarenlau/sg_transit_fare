@@ -592,6 +592,37 @@ h1, h2, h3 {
   white-space: nowrap;
 }
 
+/* ── Map stop labels (no box — floating text with halo) ─────────────────────── */
+
+.stop-label.leaflet-tooltip {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0 2px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #1e293b;
+  white-space: nowrap;
+  pointer-events: none;
+  /* White halo keeps text legible against any map tile colour */
+  text-shadow:
+    0 0 3px #fff,
+    0 0 6px #fff,
+    1px 1px 0 #fff,
+   -1px -1px 0 #fff,
+    1px -1px 0 #fff,
+   -1px  1px 0 #fff;
+}
+
+.stop-label--mrt.leaflet-tooltip {
+  font-size: 11px;
+  color: #0f172a;
+}
+
+.stop-label.leaflet-tooltip::before {
+  display: none;
+}
+
 /* ── Route line labels (bus number / MRT line at midpoint of each leg) ───────── */
 
 .route-line-label {

@@ -11,6 +11,7 @@
 import { useState, useEffect } from 'react';
 import {
   MapContainer, TileLayer, Marker, Popup, Polyline, useMap,
+  CircleMarker, Tooltip,
 } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -156,6 +157,56 @@ function RouteLineLabels({ legs }) {
   }
 
   return <>{items}</>;
+}
+
+// ── StopLabels ────────────────────────────────────────────────────────────────
+
+function StopLabels({ legs }) {
+  const markers = [];
+  const seen = new Set();
+
+  for (const leg of legs) {
+    if (leg.mode === 'WALK') continue;
+    const isMrt = leg.mode === 'SUBWAY' || leg.mode === 'TRAM';
+
+    for (const [coord, name] of [
+      [leg.geometry[0],                       leg.from_stop],
+      [leg.geometry[leg.geometry.length - 1], leg.to_stop],
+    ]) {
+      if (!coord || !name) continue;
+      const key = name.trim().toUpperCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      markers.push({ coord, name, isMrt });
+    }
+  }
+
+  return (
+    <>
+      {markers.map(({ coord, name, isMrt }, i) => (
+        <CircleMarker
+          key={i}
+          center={coord}
+          radius={isMrt ? 7 : 5}
+          pathOptions={{
+            color:       isMrt ? '#1e293b' : '#64748b',
+            fillColor:   '#ffffff',
+            fillOpacity: 1,
+            weight:      2.5,
+          }}
+        >
+          <Tooltip
+            permanent
+            direction="top"
+            offset={[0, -10]}
+            className={`stop-label${isMrt ? ' stop-label--mrt' : ''}`}
+          >
+            {name}
+          </Tooltip>
+        </CircleMarker>
+      ))}
+    </>
+  );
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
@@ -319,6 +370,7 @@ export default function App() {
                     );
                   })}
                   <RouteLineLabels legs={route.legs} />
+                  <StopLabels legs={route.legs} />
                   {allPts.length >= 2 && (
                     <MapFitter points={allPts} fitKey={fitKey} />
                   )}
