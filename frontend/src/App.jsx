@@ -11,7 +11,7 @@
 import { useState, useEffect } from 'react';
 import {
   MapContainer, TileLayer, Marker, Popup, Polyline, useMap,
-  CircleMarker, Tooltip, useMapEvents,
+  CircleMarker, Tooltip,
 } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -123,24 +123,8 @@ function MapFitter({ points, fitKey }) {
 // MRT/LRT labels are always visible; bus stop labels appear only at zoom ≥ 15.
 
 function StopLabels({ legs }) {
-  const map = useMap();
-  const [zoom, setZoom] = useState(() => map.getZoom());
-  useMapEvents({ zoomend() { setZoom(map.getZoom()); } });
-
-  // Count bus-leg endpoint touches per coordinate.
-  // Any coord touched by ≥ 2 bus endpoints is a bus-to-bus transfer stop.
-  const busTouches = new Map();
-  for (const leg of legs) {
-    if (leg.mode !== 'BUS') continue;
-    for (const coord of [leg.geometry[0], leg.geometry[leg.geometry.length - 1]]) {
-      if (!coord) continue;
-      const k = `${coord[0].toFixed(5)},${coord[1].toFixed(5)}`;
-      busTouches.set(k, (busTouches.get(k) ?? 0) + 1);
-    }
-  }
-
   const markers = [];
-  const seen = new Set();
+  const seen = new Set();  // deduplicate by stop name
 
   for (const leg of legs) {
     if (leg.mode === 'WALK') continue;
@@ -150,31 +134,17 @@ function StopLabels({ legs }) {
       [leg.geometry[0],                       leg.from_stop],
       [leg.geometry[leg.geometry.length - 1], leg.to_stop],
     ]) {
-      if (!coord) continue;
-
-      // MRT: deduplicate by name — same station can appear on two lines
-      // (e.g. Macpherson on CC and DT) with slightly different coordinates.
-      // Bus: deduplicate by coordinate.
-      const dedupKey = isMrt
-        ? `MRT:${name.trim().toUpperCase()}`
-        : `${coord[0].toFixed(5)},${coord[1].toFixed(5)}`;
-
-      if (seen.has(dedupKey)) continue;
-      seen.add(dedupKey);
-
-      const coordKey = `${coord[0].toFixed(5)},${coord[1].toFixed(5)}`;
-      const isBusBusTransfer = !isMrt && (busTouches.get(coordKey) ?? 0) >= 2;
-      // MRT stops always show; bus-to-bus transfers always show;
-      // plain bus endpoints (including bus↔MRT) show only when zoomed in.
-      const showAlways = isMrt || isBusBusTransfer;
-
-      markers.push({ coord, name, isMrt, showAlways });
+      if (!coord || !name) continue;
+      const key = name.trim().toUpperCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      markers.push({ coord, name, isMrt });
     }
   }
 
   return (
     <>
-      {markers.map(({ coord, name, isMrt, showAlways }, i) => (
+      {markers.map(({ coord, name, isMrt }, i) => (
         <CircleMarker
           key={i}
           center={coord}
@@ -186,16 +156,14 @@ function StopLabels({ legs }) {
             weight:      2.5,
           }}
         >
-          {(showAlways || zoom >= 15) && (
-            <Tooltip
-              permanent
-              direction="top"
-              offset={[0, -10]}
-              className={`stop-label${isMrt ? ' stop-label--mrt' : ''}`}
-            >
-              {name}
-            </Tooltip>
-          )}
+          <Tooltip
+            permanent
+            direction="top"
+            offset={[0, -10]}
+            className={`stop-label${isMrt ? ' stop-label--mrt' : ''}`}
+          >
+            {name}
+          </Tooltip>
         </CircleMarker>
       ))}
     </>
