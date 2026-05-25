@@ -25,6 +25,7 @@ OneMap API used:
 import asyncio
 import math
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from typing import Optional
@@ -36,6 +37,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from fare_calculator import JourneyType, calculate_fare
+from bus_finder import fetch_all_bus_routes, find_services_between, get_arrivals_at
+from bus_stops import fetch_all_bus_stops, search_stops
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Geometry helpers
@@ -94,10 +97,29 @@ def _decode_polyline(encoded: str) -> list[list[float]]:
 
 load_dotenv()
 
+
+@asynccontextmanager
+async def _lifespan(_):
+    """
+    Pre-fill LTA bus route and stop caches in the background on startup so
+    the first real user request is fast.  Skipped if LTA_API_KEY is absent.
+    """
+    if os.getenv("LTA_API_KEY"):
+        async def _warmup():
+            try:
+                await asyncio.gather(fetch_all_bus_routes(), fetch_all_bus_stops())
+                logging.info("LTA bus route + stop caches warmed up.")
+            except Exception as exc:
+                logging.warning("LTA cache warmup failed: %s", exc)
+        asyncio.create_task(_warmup())
+    yield
+
+
 app = FastAPI(
     title="Singapore Transport Fare Calculator",
     description="Routes via OneMap + LTA distance-based EZ-Link fares",
     version="1.0.0",
+    lifespan=_lifespan,
 )
 
 # Allow all origins for local development — restrict this for production.
@@ -712,6 +734,60 @@ async def search_locations(
         }
         for r in results[:8]
     ]
+
+
+@app.get("/api/bus-stops/search", summary="Bus stop autocomplete")
+async def bus_stop_search(
+    q: str = Query(..., min_length=2, description="Partial stop name, road, or code"),
+):
+    """
+    Return up to 10 bus stops whose code, description, or road name contains
+    the query string.  Used by the Bus Finder autocomplete inputs.
+
+    Example: GET /api/bus-stops/search?q=Farrer
+    """
+    if not os.getenv("LTA_API_KEY"):
+        raise HTTPException(status_code=500, detail="LTA_API_KEY is not configured on the server.")
+    try:
+        return await search_stops(q.strip())
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=502, detail=f"LTA DataMall error: {exc.response.status_code}")
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=502, detail=f"Could not reach LTA DataMall: {exc}")
+
+
+@app.get("/api/bus-between", summary="Find buses between two stops with live arrivals")
+async def bus_between(
+    from_stop: str = Query(..., description="Bus stop code for boarding stop (Stop A)"),
+    to_stop:   str = Query(..., description="Bus stop code for alighting stop (Stop B)"),
+):
+    """
+    Find all bus services where Stop A comes before Stop B in the route
+    sequence, then return live arrival times at Stop A for those buses.
+
+    Example: GET /api/bus-between?from_stop=09048&to_stop=09238
+    """
+    if not os.getenv("LTA_API_KEY"):
+        raise HTTPException(status_code=500, detail="LTA_API_KEY is not configured on the server.")
+
+    from_stop = from_stop.strip()
+    to_stop   = to_stop.strip()
+
+    if from_stop == to_stop:
+        raise HTTPException(status_code=400, detail="Stop A and Stop B must be different.")
+
+    try:
+        services = await find_services_between(from_stop, to_stop)
+        if not services:
+            return {"from_stop": from_stop, "to_stop": to_stop, "buses": []}
+
+        buses = await get_arrivals_at(from_stop, services)
+        return {"from_stop": from_stop, "to_stop": to_stop, "buses": buses}
+
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=502, detail=f"LTA DataMall error: {exc.response.status_code}")
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=502, detail=f"Could not reach LTA DataMall: {exc}")
 
 
 @app.get("/api/debug/geocode", summary="Debug: show raw OneMap search results for a location")
