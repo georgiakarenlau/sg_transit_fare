@@ -441,7 +441,6 @@ class MultiSegmentResponse(BaseModel):
     duration_minutes: float
     fare: FareInfo
     legs: list[RouteLeg]
-    transfer_warning: bool
 
 
 class MultiJourneyResponse(BaseModel):
@@ -673,6 +672,22 @@ def _combined_fare(combo: tuple[Route, ...]) -> FareInfo:
     )
 
 
+def _last_svc(route: Route) -> tuple[str, str | None] | None:
+    """(mode, route) of the last transit leg; None if the route is walk-only."""
+    for leg in reversed(route.legs):
+        if leg.mode != "WALK":
+            return (leg.mode, leg.route)
+    return None
+
+
+def _first_svc(route: Route) -> tuple[str, str | None] | None:
+    """(mode, route) of the first transit leg; None if the route is walk-only."""
+    for leg in route.legs:
+        if leg.mode != "WALK":
+            return (leg.mode, leg.route)
+    return None
+
+
 async def _routes_for_pair(from_loc: str, to_loc: str, token: str) -> list[Route]:
     """Fetch up to 4 unique routes between two stops (all modes in parallel)."""
     from_lat, from_lon = await _geocode(from_loc)
@@ -853,6 +868,14 @@ async def multi_route(req: MultiRouteRequest):
     journeys: list[MultiJourneyResponse] = []
 
     for combo in itertools.product(*pair_routes_list):
+        # Reject if the last service of one segment is the same as the first
+        # service of the next — you cannot re-board what you just alighted from.
+        if any(
+            _last_svc(combo[i]) == _first_svc(combo[i + 1])
+            for i in range(len(combo) - 1)
+        ):
+            continue
+
         total_fare      = _combined_fare(combo)
         total_duration  = sum(seg.duration_minutes for seg in combo)
         total_transfers = sum(seg.transfers for seg in combo)
@@ -865,7 +888,6 @@ async def multi_route(req: MultiRouteRequest):
                 duration_minutes=seg.duration_minutes,
                 fare=seg.fare,
                 legs=seg.legs,
-                transfer_warning=seg.duration_minutes > 40,
             )
             for i, seg in enumerate(combo)
         ]

@@ -14,8 +14,6 @@ function MultiJourneyCard({ journey, index }) {
   const duration   = Math.round(journey.total_duration_minutes);
   const transfers  = journey.total_transfers;
   const { segments } = journey;
-  const hasWarning = segments.slice(0, -1).some(s => s.transfer_warning);
-
   const transferLabel =
     transfers === 0 ? 'Direct' : `${transfers} transfer${transfers !== 1 ? 's' : ''}`;
 
@@ -35,7 +33,6 @@ function MultiJourneyCard({ journey, index }) {
           <span className="rc-badge">{duration} min</span>
           <span className="rc-badge">{transferLabel}</span>
           <span className="rc-badge rc-badge--mode">{journey.total_fare.journey_type}</span>
-          {hasWarning && <span className="rc-badge ms-warn-badge">⚠ Check transfer window</span>}
         </div>
         <div className="rc-header-right">
           <div className="rc-fare">
@@ -87,14 +84,6 @@ function MultiJourneyCard({ journey, index }) {
                 </div>
                 <div className="ms-seg-meta-right">
                   <span className="ms-seg-duration">{Math.round(seg.duration_minutes)} min</span>
-                  {seg.transfer_warning && i < segments.length - 1 && (
-                    <span
-                      className="ms-warn-text"
-                      title="This leg takes over 40 min — you may have under 5 min to board the next service within the 45-min tap window"
-                    >
-                      ⚠ Tight 45-min window
-                    </span>
-                  )}
                 </div>
               </div>
               <div className="rc-detail">
@@ -286,9 +275,7 @@ export default function MultiStop() {
             </div>
 
             <div className="ms-transfer-note">
-              Fare is calculated on <strong>total transit distance</strong> across all legs (SimplyGo transfer pricing).
-              Applies if you tap into each connecting service within <strong>45 min</strong> of alighting the previous,
-              and the whole journey is under <strong>2 hours</strong>.
+              Fare is the <strong>SimplyGo transfer fare</strong> — one fare on total cumulative transit distance across all legs.
             </div>
 
             <div className="route-list">
