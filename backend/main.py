@@ -448,6 +448,7 @@ class MultiJourneyResponse(BaseModel):
     total_fare: FareInfo
     total_duration_minutes: float
     total_transfers: int
+    walk_distance_km: float
     segments: list[MultiSegmentResponse]
 
 
@@ -869,9 +870,10 @@ async def multi_route(req: MultiRouteRequest):
         if len(all_bus_svcs) != len(set(all_bus_svcs)):
             continue  # same bus service used more than once
 
-        total_fare     = _combined_fare(combo)
-        total_duration = sum(seg.duration_minutes for seg in combo)
+        total_fare      = _combined_fare(combo)
+        total_duration  = sum(seg.duration_minutes for seg in combo)
         total_transfers = sum(seg.transfers for seg in combo)
+        total_walk      = sum(seg.walk_distance_km for seg in combo)
 
         segments = [
             MultiSegmentResponse(
@@ -889,6 +891,7 @@ async def multi_route(req: MultiRouteRequest):
             total_fare=total_fare,
             total_duration_minutes=round(total_duration, 1),
             total_transfers=total_transfers,
+            walk_distance_km=round(total_walk, 3),
             segments=segments,
         ))
 

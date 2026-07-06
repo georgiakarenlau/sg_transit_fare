@@ -110,13 +110,22 @@ function MultiJourneyCard({ journey, index }) {
   );
 }
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const OPTIMIZE_OPTIONS = [
+  { key: 'fare',      label: 'Lowest Fare'     },
+  { key: 'transfers', label: 'Fewest Transfers' },
+  { key: 'walk',      label: 'Least Walking'    },
+];
+
 // ── MultiStop page ────────────────────────────────────────────────────────────
 
 export default function MultiStop() {
-  const [stops, setStops]   = useState(['', '']);
-  const [loading, setLoading] = useState(false);
-  const [error, setError]   = useState(null);
-  const [result, setResult] = useState(null);
+  const [stops, setStops]       = useState(['', '']);
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState(null);
+  const [result, setResult]     = useState(null);
+  const [optimizeBy, setOptimizeBy] = useState('fare');
 
   const canPlan = stops.every(s => s.trim().length >= 2) && !loading;
 
@@ -145,6 +154,7 @@ export default function MultiStop() {
     try {
       const { data } = await axios.post(`${API_BASE}/api/multi-route`, { stops: trimmed });
       setResult(data);
+      setOptimizeBy('fare');
     } catch (err) {
       if (err.response) {
         setError(err.response.data?.detail ?? 'Failed to plan journey.');
@@ -216,27 +226,54 @@ export default function MultiStop() {
         <div className="status status--error" role="alert">{error}</div>
       )}
 
-      {result && !loading && (
-        <section className="routes-section">
-          <div className="routes-heading-row">
-            <h2 className="routes-heading">
-              {result.journeys.length} option{result.journeys.length !== 1 ? 's' : ''} found
-              <span className="routes-subtitle">{result.stops.join(' → ')}</span>
-            </h2>
-          </div>
+      {result && !loading && (() => {
+        const sorted = [...result.journeys].sort((a, b) => {
+          if (optimizeBy === 'fare')
+            return a.total_fare.fare_cents - b.total_fare.fare_cents
+                || a.total_duration_minutes - b.total_duration_minutes;
+          if (optimizeBy === 'transfers')
+            return a.total_transfers - b.total_transfers
+                || a.total_duration_minutes - b.total_duration_minutes;
+          // walk
+          return a.walk_distance_km - b.walk_distance_km
+              || a.total_duration_minutes - b.total_duration_minutes;
+        });
 
-          <div className="ms-transfer-note">
-            Fares are <strong>SimplyGo transfer fares</strong> — calculated on total transit distance across all legs.
-            The 45-min tap window applies between consecutive services.
-          </div>
+        return (
+          <section className="routes-section">
+            <div className="routes-heading-row">
+              <h2 className="routes-heading">
+                {result.journeys.length} option{result.journeys.length !== 1 ? 's' : ''} found
+                <span className="routes-subtitle">{result.stops.join(' → ')}</span>
+              </h2>
+              <div className="optimize-selector">
+                <span className="optimize-label">Optimise by</span>
+                {OPTIMIZE_OPTIONS.map(opt => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    className={`opt-btn${optimizeBy === opt.key ? ' active' : ''}`}
+                    onClick={() => setOptimizeBy(opt.key)}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-          <div className="route-list">
-            {result.journeys.map((journey, i) => (
-              <MultiJourneyCard key={i} journey={journey} index={i} />
-            ))}
-          </div>
-        </section>
-      )}
+            <div className="ms-transfer-note">
+              Fares are <strong>SimplyGo transfer fares</strong> — calculated on total transit distance across all legs.
+              The 45-min tap window applies between consecutive services.
+            </div>
+
+            <div className="route-list">
+              {sorted.map((journey, i) => (
+                <MultiJourneyCard key={i} journey={journey} index={i} />
+              ))}
+            </div>
+          </section>
+        );
+      })()}
     </>
   );
 }
