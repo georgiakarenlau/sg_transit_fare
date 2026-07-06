@@ -400,6 +400,7 @@ class RouteLeg(BaseModel):
     to_stop: str
     duration_minutes: float
     distance_km: float
+    intermediate_stops: int = 0
     geometry: list[list[float]] = []
 
 
@@ -577,6 +578,7 @@ def _parse_itinerary(itinerary: dict) -> Route:
             to_stop=to_info.get("name", ""),
             duration_minutes=round(duration_s / 60, 1),
             distance_km=round(distance_m / 1000, 3),
+            intermediate_stops=len(leg.get("intermediateStops", [])),
             geometry=geometry,
         ))
 

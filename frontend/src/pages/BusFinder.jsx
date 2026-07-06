@@ -1,9 +1,9 @@
 /**
  * BusFinder — find buses running between two stops with live arrival times.
  *
- * Users search for stops by name, road, or code via autocomplete backed by
- * /api/bus-stops/search.  On submit, /api/bus-between returns matching
- * services and their next three arrivals at Stop A.
+ * Stop inputs are controlled by the parent so the button can be enabled
+ * as soon as both fields have text, regardless of whether the user selected
+ * from the autocomplete dropdown or typed a stop code directly.
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -12,24 +12,37 @@ import axios from 'axios';
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000';
 const DEBOUNCE_MS = 300;
 
-// ── BusStopInput ──────────────────────────────────────────────────────────────
-// Autocomplete input for bus stops. Calls /api/bus-stops/search and lets the
-// user pick a stop; the selected stop object is passed to onSelect().
+// ── helpers ───────────────────────────────────────────────────────────────────
 
-function BusStopInput({ id, label, placeholder, onSelect }) {
-  const [query,       setQuery]       = useState('');
+/**
+ * Extract a stop code from whatever the user typed.
+ * If the field was filled via autocomplete it looks like "09048 — BLK 97";
+ * if the user typed a bare code it looks like "09048".
+ * We take the leading word (digits + letters) in both cases.
+ */
+function extractCode(text) {
+  const m = text.trim().match(/^(\S+)/);
+  return m ? m[1] : text.trim();
+}
+
+// ── BusStopInput ──────────────────────────────────────────────────────────────
+// Controlled autocomplete for bus stops.
+// `value` / `onChange` manage the raw text (owned by parent).
+// `onSelect` is called with the full stop object when the user picks from dropdown.
+
+function BusStopInput({ id, label, placeholder, value, onChange, onSelect }) {
   const [suggestions, setSuggestions] = useState([]);
   const [showDrop,    setShowDrop]    = useState(false);
   const [active,      setActive]      = useState(-1);
 
   const debounceRef = useRef(null);
   const abortRef    = useRef(null);
-  const skipRef     = useRef(false);   // suppress search after programmatic set
+  const skipRef     = useRef(false);
 
   useEffect(() => {
     clearTimeout(debounceRef.current);
     if (skipRef.current) { skipRef.current = false; return; }
-    if (query.trim().length < 2) {
+    if (value.trim().length < 2) {
       abortRef.current?.abort();
       setSuggestions([]);
       setShowDrop(false);
@@ -40,7 +53,7 @@ function BusStopInput({ id, label, placeholder, onSelect }) {
       abortRef.current = new AbortController();
       try {
         const { data } = await axios.get(`${API_BASE}/api/bus-stops/search`, {
-          params: { q: query.trim() },
+          params: { q: value.trim() },
           signal: abortRef.current.signal,
         });
         setSuggestions(data);
@@ -53,16 +66,16 @@ function BusStopInput({ id, label, placeholder, onSelect }) {
       }
     }, DEBOUNCE_MS);
     return () => clearTimeout(debounceRef.current);
-  }, [query]);
+  }, [value]);
 
   function select(stop) {
     abortRef.current?.abort();
     skipRef.current = true;
-    setQuery(`${stop.code} — ${stop.name}`);
+    onChange(`${stop.code} — ${stop.name}`);
+    onSelect(stop);
     setShowDrop(false);
     setSuggestions([]);
     setActive(-1);
-    onSelect(stop);
   }
 
   function onKeyDown(e) {
@@ -89,9 +102,9 @@ function BusStopInput({ id, label, placeholder, onSelect }) {
           id={id}
           type="text"
           placeholder={placeholder}
-          value={query}
+          value={value}
           autoComplete="off"
-          onChange={e => { setQuery(e.target.value); onSelect(null); }}
+          onChange={e => { onChange(e.target.value); onSelect(null); }}
           onFocus={() => suggestions.length > 0 && setShowDrop(true)}
           onBlur={() => setShowDrop(false)}
           onKeyDown={onKeyDown}
@@ -118,10 +131,6 @@ function BusStopInput({ id, label, placeholder, onSelect }) {
 }
 
 // ── ArrivalChip ───────────────────────────────────────────────────────────────
-// Colour-coded arrival time badge.
-//   green  → arriving now or ≤ 3 min
-//   amber  → 4 – 9 min
-//   grey   → 10+ min or no data
 
 function ArrivalChip({ minutes }) {
   if (minutes === null || minutes === undefined)
@@ -137,15 +146,29 @@ function ArrivalChip({ minutes }) {
 // ── BusFinder page ────────────────────────────────────────────────────────────
 
 export default function BusFinder() {
+  // Raw text in each input (controlled by this component)
+  const [fromText, setFromText] = useState('');
+  const [toText,   setToText]   = useState('');
+  // Full stop object if the user selected from the autocomplete dropdown
   const [fromStop, setFromStop] = useState(null);
   const [toStop,   setToStop]   = useState(null);
-  const [results,  setResults]  = useState(null);
-  const [loading,  setLoading]  = useState(false);
-  const [error,    setError]    = useState(null);
+
+  const [results, setResults] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState(null);
+
+  // Enable the button as soon as both fields have enough text —
+  // no dropdown selection required (typed codes work too).
+  const canSearch = fromText.trim().length >= 2 && toText.trim().length >= 2;
+
+  // Derive stop codes: prefer the code from the dropdown selection,
+  // fall back to the leading word the user typed (handles bare codes like "09048").
+  const fromCode = fromStop?.code ?? extractCode(fromText);
+  const toCode   = toStop?.code   ?? extractCode(toText);
 
   async function handleFind(e) {
     e.preventDefault();
-    if (!fromStop || !toStop) return;
+    if (!canSearch) return;
 
     setLoading(true);
     setError(null);
@@ -153,7 +176,7 @@ export default function BusFinder() {
 
     try {
       const { data } = await axios.get(`${API_BASE}/api/bus-between`, {
-        params: { from_stop: fromStop.code, to_stop: toStop.code },
+        params: { from_stop: fromCode, to_stop: toCode },
       });
       setResults(data);
     } catch (err) {
@@ -162,6 +185,10 @@ export default function BusFinder() {
       setLoading(false);
     }
   }
+
+  // Display labels in the results heading
+  const fromLabel = fromStop ? `${fromStop.code} — ${fromStop.name}` : fromCode;
+  const toLabel   = toStop   ? `${toStop.code} — ${toStop.name}`     : toCode;
 
   return (
     <main className="app-main">
@@ -175,20 +202,24 @@ export default function BusFinder() {
               id="bf-from"
               label="Board at (Stop A)"
               placeholder="e.g. BLK 97 or 09048"
+              value={fromText}
+              onChange={setFromText}
               onSelect={setFromStop}
             />
 
             <BusStopInput
               id="bf-to"
               label="Alight at (Stop B)"
-              placeholder="e.g. Farrer Road MRT"
+              placeholder="e.g. Farrer Road MRT or 09238"
+              value={toText}
+              onChange={setToText}
               onSelect={setToStop}
             />
 
             <button
               type="submit"
               className="search-btn"
-              disabled={loading || !fromStop || !toStop}
+              disabled={loading || !canSearch}
             >
               {loading ? 'Searching…' : 'Find Buses'}
             </button>
@@ -213,30 +244,34 @@ export default function BusFinder() {
 
         {!results && !loading && !error && (
           <div className="status status--hint">
-            Enter a boarding stop and an alighting stop, then click{' '}
-            <strong>Find Buses</strong>.
+            Enter a boarding stop and an alighting stop above, then click{' '}
+            <strong>Find Buses</strong>. You can type a stop code directly
+            (e.g. <code>09048</code>) or search by name.
           </div>
         )}
 
         {results && !loading && (
           results.buses.length === 0 ? (
             <div className="status status--hint">
-              No direct buses found between{' '}
-              <strong>{fromStop.code}</strong> and <strong>{toStop.code}</strong>{' '}
-              in this direction.
+              No direct buses found from <strong>{fromLabel}</strong> to{' '}
+              <strong>{toLabel}</strong> in this direction.
             </div>
           ) : (
             <div className="bf-results">
               <div className="bf-heading">
                 <h2 className="bf-title">
-                  Buses from <span className="bf-code">{fromStop.code}</span> to{' '}
-                  <span className="bf-code">{toStop.code}</span>
+                  Buses from <span className="bf-code">{fromCode}</span> to{' '}
+                  <span className="bf-code">{toCode}</span>
                 </h2>
-                <p className="bf-subtitle">
-                  {fromStop.name} ({fromStop.road})
-                  {' → '}
-                  {toStop.name} ({toStop.road})
-                </p>
+                {(fromStop || toStop) && (
+                  <p className="bf-subtitle">
+                    {fromStop?.name ?? fromCode}
+                    {fromStop?.road ? ` (${fromStop.road})` : ''}
+                    {' → '}
+                    {toStop?.name ?? toCode}
+                    {toStop?.road ? ` (${toStop.road})` : ''}
+                  </p>
+                )}
               </div>
 
               <table className="bf-table">

@@ -257,42 +257,6 @@ h1, h2, h3 {
   text-overflow: ellipsis;
 }
 
-/* ── Navigation tabs ─────────────────────────────────────────────────────────── */
-
-.app-nav {
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.nav-inner {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 0 1rem;
-  display: flex;
-}
-
-.nav-tab {
-  height: 44px;
-  padding: 0 1.25rem;
-  background: transparent;
-  border: none;
-  border-bottom: 3px solid transparent;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-  white-space: nowrap;
-}
-
-.nav-tab:hover { color: var(--text); }
-
-.nav-tab.active {
-  color: var(--sg-red);
-  border-bottom-color: var(--sg-red);
-}
-
 /* ── Map ─────────────────────────────────────────────────────────────────────── */
 
 .map-section {
@@ -523,6 +487,25 @@ h1, h2, h3 {
   border-color: rgba(200, 16, 46, 0.2);
 }
 
+.rc-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+}
+
+.rc-chevron {
+  font-size: 1.1rem;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+  line-height: 1;
+  user-select: none;
+}
+
+.rc-chevron--up {
+  transform: rotate(180deg);
+}
+
 /* Fare — prominent, right-aligned */
 .rc-fare {
   text-align: right;
@@ -585,47 +568,101 @@ h1, h2, h3 {
 .rc-chip--subway { background: #eff6ff; color: var(--mode-mrt);  }
 .rc-chip--tram   { background: #f5f3ff; color: var(--mode-lrt);  }
 
-/* Leg detail rows */
-.rc-legs {
+/* ── Expanded journey detail ─────────────────────────────────────────────────── */
+
+.rc-detail {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
 }
 
-.rc-leg-row {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
+.rc-dl-leg {
+  display: flex;
+  align-items: flex-start;
   gap: 0.75rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.rc-dl-leg:first-child {
+  padding-top: 0;
+}
+
+.rc-dl-leg:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.rc-dl-leg--walk {
+  opacity: 0.72;
+}
+
+.rc-dl-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
   align-items: center;
-  font-size: 0.82rem;
+  justify-content: center;
+  flex-shrink: 0;
+  color: #fff;
+  margin-top: 1px;
+}
+
+.rc-dl-icon--walk {
+  background: #d1fae5;
+  color: var(--mode-walk);
+}
+
+.rc-dl-icon-text {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #fff;
+  line-height: 1;
+}
+
+.rc-dl-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.rc-dl-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text-heading);
+  line-height: 1.2;
+}
+
+.rc-dl-title--walk {
+  color: var(--mode-walk);
+}
+
+.rc-dl-stops {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+  font-size: 0.81rem;
   color: var(--text);
-  padding: 0.3rem 0;
+  line-height: 1.4;
 }
 
-.rc-leg-mode {
-  font-weight: 600;
-  white-space: nowrap;
+.rc-dl-stop-name {
+  color: var(--text);
 }
 
-.rc-leg-mode--bus    { color: var(--mode-bus);  }
-.rc-leg-mode--subway { color: var(--mode-mrt);  }
-.rc-leg-mode--tram   { color: var(--mode-lrt);  }
-
-.rc-leg-stops {
+.rc-dl-arrow {
   color: var(--text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex-shrink: 0;
+  font-size: 0.75rem;
 }
 
-.rc-leg-arrow {
-  color: var(--border);
-}
-
-.rc-leg-info {
+.rc-dl-meta {
   font-size: 0.75rem;
   color: var(--text-muted);
-  white-space: nowrap;
 }
 
 /* ── Map stop labels (no box — floating text with halo) ─────────────────────── */
@@ -678,98 +715,6 @@ h1, h2, h3 {
 }
 
 
-/* ── Bus Finder ──────────────────────────────────────────────────────────────── */
-
-.bf-results {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 1.25rem;
-  box-shadow: var(--shadow-sm);
-}
-
-.bf-heading {
-  margin-bottom: 1rem;
-}
-
-.bf-title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-heading);
-  margin-bottom: 0.2rem;
-}
-
-.bf-code {
-  font-family: monospace;
-  background: #f1f3f5;
-  padding: 1px 5px;
-  border-radius: 4px;
-  font-size: 0.95em;
-}
-
-.bf-subtitle {
-  font-size: 0.83rem;
-  color: var(--text-muted);
-  margin: 0;
-}
-
-.bf-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.88rem;
-}
-
-.bf-table th {
-  text-align: left;
-  font-size: 0.73rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 0.4rem 0.75rem;
-  border-bottom: 1px solid var(--border);
-}
-
-.bf-table td {
-  padding: 0.6rem 0.75rem;
-  border-bottom: 1px solid var(--border);
-  vertical-align: middle;
-}
-
-.bf-table tr:last-child td { border-bottom: none; }
-
-.bf-table tr:hover td { background: #fafafa; }
-
-.bf-bus-no {
-  font-weight: 700;
-  font-size: 1rem;
-  color: var(--text-heading);
-  white-space: nowrap;
-}
-
-.bf-disclaimer {
-  font-size: 0.73rem;
-  color: var(--text-muted);
-  margin: 0.75rem 0 0;
-  text-align: right;
-}
-
-/* Arrival time chips */
-.arrival-chip {
-  display: inline-block;
-  padding: 2px 9px;
-  border-radius: 99px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.arrival-chip--now,
-.arrival-chip--soon  { background: #dcfce7; color: #15803d; }
-.arrival-chip--mid   { background: #fef9c3; color: #854d0e; }
-.arrival-chip--later { background: #f1f5f9; color: var(--text-muted); }
-.arrival-chip--none  { color: var(--border); font-weight: 400; }
-
 /* ── Footer ──────────────────────────────────────────────────────────────────── */
 
 .app-footer {
@@ -802,11 +747,12 @@ h1, h2, h3 {
     height: 300px;
   }
 
-  .rc-leg-row {
-    grid-template-columns: auto 1fr;
+  .rc-dl-stops {
+    flex-direction: column;
+    gap: 0.05rem;
   }
 
-  .rc-leg-info {
+  .rc-dl-arrow {
     display: none;
   }
 }

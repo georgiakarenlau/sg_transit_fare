@@ -18,8 +18,6 @@ import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import RouteCard from './components/RouteCard';
 import LocationInput from './components/LocationInput';
-import BusFinder from './pages/BusFinder';
-
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000';
@@ -213,8 +211,6 @@ function StopLabels({ legs }) {
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [page, setPage] = useState('planner');
-
   // Search form
   const [fromInput, setFromInput] = useState('');
   const [toInput,   setToInput]   = useState('');
@@ -296,26 +292,7 @@ export default function App() {
         </div>
       </header>
 
-      <nav className="app-nav">
-        <div className="nav-inner">
-          <button
-            className={`nav-tab${page === 'planner' ? ' active' : ''}`}
-            onClick={() => setPage('planner')}
-          >
-            Route Planner
-          </button>
-          <button
-            className={`nav-tab${page === 'bus-finder' ? ' active' : ''}`}
-            onClick={() => setPage('bus-finder')}
-          >
-            Bus Finder
-          </button>
-        </div>
-      </nav>
-
-      {page === 'bus-finder' && <BusFinder />}
-
-      <main className="app-main" style={{ display: page === 'planner' ? undefined : 'none' }}>
+      <main className="app-main">
 
         {/* ── Search panel ─────────────────────────────────────────────── */}
         <section className="search-panel">

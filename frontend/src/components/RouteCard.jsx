@@ -1,23 +1,7 @@
-/**
- * RouteCard — displays one public transport route option.
- *
- * Props:
- *   route       {object}   — one entry from the API `routes` array
- *   index       {number}   — 0-based position in the results list
- *   isSelected  {boolean}  — highlights the card when true
- *   onSelect    {function} — called when the user clicks the card
- */
+import { useState, useEffect } from 'react';
 
-// ── Mode display helpers ──────────────────────────────────────────────────────
+// ── MRT colour maps ───────────────────────────────────────────────────────────
 
-const MODE_NAMES = {
-  WALK:   'Walk',
-  BUS:    'Bus',
-  SUBWAY: 'MRT',
-  TRAM:   'LRT',
-};
-
-// Short codes that OneMap actually returns (e.g. "EW", "CC", "DT")
 const MRT_SHORT_COLORS = {
   'NS': '#D42E12',
   'EW': '#009645',
@@ -32,7 +16,6 @@ const MRT_SHORT_COLORS = {
   'PU': '#9900AA',
 };
 
-// Full-name fallback
 const MRT_CHIP_COLORS = {
   'NORTH SOUTH LINE':        '#D42E12',
   'EAST WEST LINE':          '#009645',
@@ -45,6 +28,20 @@ const MRT_CHIP_COLORS = {
   'PUNGGOL':                 '#9900AA',
 };
 
+const MRT_LINE_NAMES = {
+  'NS': 'North South Line',
+  'EW': 'East West Line',
+  'CG': 'East West Line',
+  'CC': 'Circle Line',
+  'CE': 'Circle Line',
+  'DT': 'Downtown Line',
+  'TE': 'Thomson–East Coast Line',
+  'NE': 'North East Line',
+  'BP': 'Bukit Panjang LRT',
+  'SK': 'Sengkang LRT',
+  'PU': 'Punggol LRT',
+};
+
 function getMrtColor(route) {
   const upper = (route ?? '').toUpperCase().trim();
   if (MRT_SHORT_COLORS[upper]) return MRT_SHORT_COLORS[upper];
@@ -54,12 +51,15 @@ function getMrtColor(route) {
   return null;
 }
 
-/** Strip operator prefix from bus route strings, e.g. "SBST BUS 153" → "153". */
+function getMrtLineName(route) {
+  const upper = (route ?? '').toUpperCase().trim();
+  return MRT_LINE_NAMES[upper] ?? route ?? 'MRT';
+}
+
 function cleanBusRoute(route) {
   return (route ?? '').replace(/^.*?\bBUS\s+/i, '').trim() || (route ?? '');
 }
 
-/** Short label used inside the journey-summary chips. */
 function chipLabel(leg) {
   if (leg.mode === 'WALK') return `Walk ${Math.round(leg.duration_minutes)} min`;
   if (leg.mode === 'BUS') {
@@ -67,13 +67,91 @@ function chipLabel(leg) {
     return num ? `Bus ${num}` : 'Bus';
   }
   if (leg.mode === 'SUBWAY' || leg.mode === 'TRAM') return leg.route ?? 'MRT';
-  const name = MODE_NAMES[leg.mode] ?? leg.mode;
+  const name = { WALK: 'Walk', BUS: 'Bus', SUBWAY: 'MRT', TRAM: 'LRT' }[leg.mode] ?? leg.mode;
   return leg.route ? `${name} ${leg.route}` : name;
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ── Icons ─────────────────────────────────────────────────────────────────────
+
+const BusIcon = () => (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+    <path d="M4 16c0 .88.39 1.67 1 2.22V20a1 1 0 001 1h1a1 1 0 001-1v-1h8v1a1 1 0 001 1h1a1 1 0 001-1v-1.78A2.99 2.99 0 0020 16V6c0-3.5-3.58-4-8-4S4 2.5 4 6v10zm3.5 1A1.5 1.5 0 117.5 14a1.5 1.5 0 010 3zm9 0a1.5 1.5 0 110-3 1.5 1.5 0 010 3zM18 11H6V6h12v5z"/>
+  </svg>
+);
+
+const WalkIcon = () => (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor" aria-hidden="true">
+    <path d="M13.49 5.48a2 2 0 100-4 2 2 0 000 4zm-3.6 13.9l1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3a7.02 7.02 0 005.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/>
+  </svg>
+);
+
+// ── LegDetail ─────────────────────────────────────────────────────────────────
+
+function LegDetail({ leg }) {
+  if (leg.mode === 'WALK') {
+    const metres = Math.round(leg.distance_km * 1000);
+    const mins   = Math.round(leg.duration_minutes);
+    return (
+      <div className="rc-dl-leg rc-dl-leg--walk">
+        <div className="rc-dl-icon rc-dl-icon--walk">
+          <WalkIcon />
+        </div>
+        <div className="rc-dl-body">
+          <span className="rc-dl-title rc-dl-title--walk">Walk</span>
+          <span className="rc-dl-meta">{metres} m · {mins} min</span>
+        </div>
+      </div>
+    );
+  }
+
+  const isMrt  = leg.mode === 'SUBWAY' || leg.mode === 'TRAM';
+  const color  = isMrt ? (getMrtColor(leg.route) ?? '#64748b') : '#15803d';
+  const code   = (leg.route ?? '').toUpperCase().trim().slice(0, 2);
+  const title  = isMrt ? getMrtLineName(leg.route) : `Bus ${cleanBusRoute(leg.route)}`;
+  const stops  = leg.intermediate_stops ?? 0;
+  const mins   = Math.round(leg.duration_minutes);
+
+  return (
+    <div className="rc-dl-leg">
+      <div className="rc-dl-icon" style={{ background: color }}>
+        {isMrt
+          ? <span className="rc-dl-icon-text">{code}</span>
+          : <BusIcon />
+        }
+      </div>
+      <div className="rc-dl-body">
+        <span className="rc-dl-title" style={{ color }}>{title}</span>
+        <div className="rc-dl-stops">
+          <span className="rc-dl-stop-name">{leg.from_stop}</span>
+          <span className="rc-dl-arrow">→</span>
+          <span className="rc-dl-stop-name">{leg.to_stop}</span>
+        </div>
+        <span className="rc-dl-meta">
+          {stops} stop{stops !== 1 ? 's' : ''} · {mins} min
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ── RouteCard ─────────────────────────────────────────────────────────────────
 
 export default function RouteCard({ route, index, isSelected, onSelect, badge }) {
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!isSelected) setExpanded(false);
+  }, [isSelected]);
+
+  function handleClick() {
+    if (!isSelected) {
+      onSelect();
+      setExpanded(true);
+    } else {
+      setExpanded(e => !e);
+    }
+  }
+
   const fare     = route.fare.fare_sgd.toFixed(2);
   const duration = Math.round(route.duration_minutes);
   const { transfers, legs, fare: fareInfo } = route;
@@ -81,19 +159,17 @@ export default function RouteCard({ route, index, isSelected, onSelect, badge })
   const transferLabel =
     transfers === 0 ? 'Direct' : `${transfers} transfer${transfers !== 1 ? 's' : ''}`;
 
-  // Only the transit (non-walk) legs are shown in the detail table.
-  const transitLegs = legs.filter(l => l.mode !== 'WALK');
-
   return (
     <div
       className={`route-card${isSelected ? ' selected' : ''}`}
-      onClick={onSelect}
+      onClick={handleClick}
       role="button"
       tabIndex={0}
-      onKeyDown={e => e.key === 'Enter' && onSelect()}
+      onKeyDown={e => e.key === 'Enter' && handleClick()}
       aria-pressed={isSelected}
+      aria-expanded={expanded}
     >
-      {/* ── Header row ─────────────────────────────────────────────────── */}
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="rc-header">
         <div className="rc-meta">
           <span className="rc-option">Option {index + 1}</span>
@@ -102,13 +178,16 @@ export default function RouteCard({ route, index, isSelected, onSelect, badge })
           <span className="rc-badge">{transferLabel}</span>
           <span className="rc-badge rc-badge--mode">{fareInfo.journey_type}</span>
         </div>
-        <div className="rc-fare">
-          <span className="rc-fare-amount">${fare}</span>
-          <span className="rc-fare-label">Adult EZ-Link</span>
+        <div className="rc-header-right">
+          <div className="rc-fare">
+            <span className="rc-fare-amount">${fare}</span>
+            <span className="rc-fare-label">Adult EZ-Link</span>
+          </div>
+          <span className={`rc-chevron${expanded ? ' rc-chevron--up' : ''}`}>▾</span>
         </div>
       </div>
 
-      {/* ── Journey summary — compact chip row ─────────────────────────── */}
+      {/* ── Journey summary chip row ─────────────────────────────────────── */}
       <div className="rc-summary">
         <span className="rc-stop-pin rc-stop-pin--a">A</span>
         {legs.map((leg, i) => {
@@ -130,28 +209,11 @@ export default function RouteCard({ route, index, isSelected, onSelect, badge })
         <span className="rc-stop-pin rc-stop-pin--b">B</span>
       </div>
 
-      {/* ── Transit leg details ─────────────────────────────────────────── */}
-      {transitLegs.length > 0 && (
-        <div className="rc-legs">
-          {transitLegs.map((leg, i) => (
-            <div key={i} className="rc-leg-row">
-              <span className={`rc-leg-mode rc-leg-mode--${leg.mode.toLowerCase()}`}>
-                {MODE_NAMES[leg.mode] ?? leg.mode}
-                {leg.route && (
-                  <strong>
-                    {' '}{leg.mode === 'BUS' ? cleanBusRoute(leg.route) : leg.route}
-                  </strong>
-                )}
-              </span>
-              <span className="rc-leg-stops">
-                {leg.from_stop}
-                <span className="rc-leg-arrow"> → </span>
-                {leg.to_stop}
-              </span>
-              <span className="rc-leg-info">
-                {leg.distance_km.toFixed(1)} km · {Math.round(leg.duration_minutes)} min
-              </span>
-            </div>
+      {/* ── Expanded detail ─────────────────────────────────────────────── */}
+      {expanded && (
+        <div className="rc-detail">
+          {legs.map((leg, i) => (
+            <LegDetail key={i} leg={leg} />
           ))}
         </div>
       )}
