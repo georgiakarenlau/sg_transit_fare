@@ -18,6 +18,7 @@ import 'leaflet/dist/leaflet.css';
 import axios from 'axios';
 import RouteCard from './components/RouteCard';
 import LocationInput from './components/LocationInput';
+import MultiStop from './pages/MultiStop';
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000';
@@ -211,6 +212,7 @@ function StopLabels({ legs }) {
 // ── App ───────────────────────────────────────────────────────────────────────
 
 export default function App() {
+  const [page, setPage] = useState('planner');
   // Search form
   const [fromInput, setFromInput] = useState('');
   const [toInput,   setToInput]   = useState('');
@@ -292,6 +294,26 @@ export default function App() {
         </div>
       </header>
 
+      <nav className="app-nav">
+        <div className="nav-inner">
+          <button
+            type="button"
+            className={`nav-tab${page === 'planner' ? ' active' : ''}`}
+            onClick={() => setPage('planner')}
+          >
+            Route Planner
+          </button>
+          <button
+            type="button"
+            className={`nav-tab${page === 'multi' ? ' active' : ''}`}
+            onClick={() => setPage('multi')}
+          >
+            Multi-Stop
+          </button>
+        </div>
+      </nav>
+
+      {page === 'planner' && (
       <main className="app-main">
 
         {/* ── Search panel ─────────────────────────────────────────────── */}
@@ -449,6 +471,12 @@ export default function App() {
 
         </section>
       </main>
+      )}
+      {page === 'multi' && (
+        <main className="app-main">
+          <MultiStop />
+        </main>
+      )}
 
       <footer className="app-footer">
         Fares are indicative — 2026 LTA fare tables. Always verify before travel.

@@ -23,8 +23,10 @@ OneMap API used:
 """
 
 import asyncio
+import itertools
 import math
 import os
+import re as _re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -126,7 +128,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -427,6 +429,33 @@ class RoutesResponse(BaseModel):
     routes: list[Route]
 
 
+# ── Multi-route models ────────────────────────────────────────────────────────
+
+class MultiRouteRequest(BaseModel):
+    stops: list[str]
+
+
+class MultiSegmentResponse(BaseModel):
+    from_location: str
+    to_location: str
+    duration_minutes: float
+    fare: FareInfo
+    legs: list[RouteLeg]
+    transfer_warning: bool
+
+
+class MultiJourneyResponse(BaseModel):
+    total_fare: FareInfo
+    total_duration_minutes: float
+    total_transfers: int
+    segments: list[MultiSegmentResponse]
+
+
+class MultiRouteResponse(BaseModel):
+    stops: list[str]
+    journeys: list[MultiJourneyResponse]
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Itinerary parsing helpers
 # ──────────────────────────────────────────────────────────────────────────────
@@ -604,6 +633,83 @@ def _parse_itinerary(itinerary: dict) -> Route:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Multi-route helpers
+# ──────────────────────────────────────────────────────────────────────────────
+
+_BUS_SVC_RE = _re.compile(r'\b(\d+[A-Za-z]?)\b')
+
+
+def _svc_numbers(route: Route) -> set[str]:
+    """Return the set of bus service numbers used in a route (e.g. {'153', '30'})."""
+    nums: set[str] = set()
+    for leg in route.legs:
+        if leg.mode == "BUS":
+            for m in _BUS_SVC_RE.finditer(leg.route or ""):
+                nums.add(m.group(1).upper())
+    return nums
+
+
+def _combined_fare(combo: tuple[Route, ...]) -> FareInfo:
+    """
+    Compute the SimplyGo transfer fare for a multi-segment combination.
+
+    SimplyGo charges a single fare on the total cumulative transit distance
+    across all connected services within the 45-minute tap window.
+    """
+    total_km = sum(seg.fare.transit_distance_km for seg in combo)
+
+    has_mrt = any(
+        any(leg.mode in ("SUBWAY", "TRAM") for leg in seg.legs)
+        for seg in combo
+    )
+    has_bus = any(
+        any(leg.mode == "BUS" for leg in seg.legs)
+        for seg in combo
+    )
+
+    if has_mrt and has_bus:
+        jtype = JourneyType.INTEGRATED
+    elif has_mrt:
+        jtype = JourneyType.MRT
+    else:
+        jtype = JourneyType.BUS
+
+    fare = calculate_fare(max(total_km, 0.1), jtype)
+    return FareInfo(
+        fare_sgd=fare.fare_sgd,
+        fare_cents=fare.fare_cents,
+        journey_type=fare.journey_type.value,
+        transit_distance_km=fare.distance_km,
+    )
+
+
+async def _routes_for_pair(from_loc: str, to_loc: str, token: str) -> list[Route]:
+    """Fetch up to 4 unique routes between two stops (all modes in parallel)."""
+    from_lat, from_lon = await _geocode(from_loc)
+    to_lat,   to_lon   = await _geocode(to_loc)
+
+    raw_results = await asyncio.gather(
+        _fetch_routes(from_lat, from_lon, to_lat, to_lon, token, 3, "transit"),
+        _fetch_routes(from_lat, from_lon, to_lat, to_lon, token, 3, "bus"),
+        _fetch_routes(from_lat, from_lon, to_lat, to_lon, token, 2, "rail"),
+        return_exceptions=True,
+    )
+
+    unique: list[dict] = []
+    seen: set[str] = set()
+    for result in raw_results:
+        if isinstance(result, Exception):
+            continue
+        for it in result.get("plan", {}).get("itineraries", []):
+            fp = _itinerary_fingerprint(it)
+            if fp not in seen:
+                seen.add(fp)
+                unique.append(it)
+
+    return [_parse_itinerary(it) for it in unique[:4]]
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # API endpoints
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -709,6 +815,92 @@ async def get_routes(
         to_coords=LatLon(lat=to_lat, lon=to_lon),
         routes=routes,
     )
+
+
+@app.post("/api/multi-route", response_model=MultiRouteResponse, summary="Multi-stop journey planner")
+async def multi_route(req: MultiRouteRequest):
+    """
+    Plan a journey through 2–5 stops and return up to 5 combined options.
+
+    Fare is calculated as a single SimplyGo transfer fare on the total
+    cumulative transit distance across all segments.  Options where the same
+    bus service number appears more than once are filtered out.
+
+    Example request body::
+
+        {"stops": ["Orchard MRT", "Commonwealth MRT", "Changi Airport"]}
+    """
+    stops = [s.strip() for s in req.stops if s.strip()]
+    if len(stops) < 2:
+        raise HTTPException(status_code=400, detail="At least 2 non-empty stops are required.")
+    if len(stops) > 5:
+        raise HTTPException(status_code=400, detail="At most 5 stops are supported.")
+
+    token = await _get_token()
+
+    # Fetch routes for all consecutive pairs in parallel.
+    pair_route_tasks = [
+        _routes_for_pair(stops[i], stops[i + 1], token)
+        for i in range(len(stops) - 1)
+    ]
+    pair_results = await asyncio.gather(*pair_route_tasks, return_exceptions=True)
+
+    pair_routes_list: list[list[Route]] = []
+    for i, result in enumerate(pair_results):
+        if isinstance(result, HTTPException):
+            raise result
+        if isinstance(result, Exception):
+            raise HTTPException(status_code=502, detail=f"Routing error for segment {i + 1}: {result}")
+        routes = result  # type: ignore[assignment]
+        if not routes:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No routes found between '{stops[i]}' and '{stops[i + 1]}'.",
+            )
+        pair_routes_list.append(routes)
+
+    # Cross-combine one route per segment; reject combinations that reuse the same bus.
+    journeys: list[MultiJourneyResponse] = []
+
+    for combo in itertools.product(*pair_routes_list):
+        all_bus_svcs: list[str] = []
+        for seg in combo:
+            all_bus_svcs.extend(_svc_numbers(seg))
+        if len(all_bus_svcs) != len(set(all_bus_svcs)):
+            continue  # same bus service used more than once
+
+        total_fare     = _combined_fare(combo)
+        total_duration = sum(seg.duration_minutes for seg in combo)
+        total_transfers = sum(seg.transfers for seg in combo)
+
+        segments = [
+            MultiSegmentResponse(
+                from_location=stops[i],
+                to_location=stops[i + 1],
+                duration_minutes=seg.duration_minutes,
+                fare=seg.fare,
+                legs=seg.legs,
+                transfer_warning=seg.duration_minutes > 40,
+            )
+            for i, seg in enumerate(combo)
+        ]
+
+        journeys.append(MultiJourneyResponse(
+            total_fare=total_fare,
+            total_duration_minutes=round(total_duration, 1),
+            total_transfers=total_transfers,
+            segments=segments,
+        ))
+
+    if not journeys:
+        raise HTTPException(
+            status_code=404,
+            detail="No valid multi-stop journeys found. Try different via stops.",
+        )
+
+    journeys.sort(key=lambda j: (j.total_fare.fare_cents, j.total_transfers, j.total_duration_minutes))
+
+    return MultiRouteResponse(stops=stops, journeys=journeys[:5])
 
 
 @app.get("/health", summary="Liveness check")

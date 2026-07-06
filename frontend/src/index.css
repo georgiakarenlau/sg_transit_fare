@@ -810,6 +810,236 @@ h1, h2, h3 {
   background: var(--surface);
 }
 
+/* ── Nav tabs ────────────────────────────────────────────────────────────────── */
+
+.app-nav {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-inner {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 0 1rem;
+  display: flex;
+  gap: 0;
+}
+
+.nav-tab {
+  height: 44px;
+  padding: 0 1.25rem;
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+.nav-tab:hover:not(.active) {
+  color: var(--text);
+}
+
+.nav-tab.active {
+  color: var(--sg-red);
+  border-bottom-color: var(--sg-red);
+  font-weight: 600;
+}
+
+/* ── Multi-stop stop pin (intermediate via stop) ─────────────────────────────── */
+
+.rc-stop-pin--mid {
+  background: #64748b;
+}
+
+/* ── Multi-Stop page: form ───────────────────────────────────────────────────── */
+
+.ms-page-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-heading);
+  margin-bottom: 0.25rem;
+}
+
+.ms-page-desc {
+  font-size: 0.83rem;
+  color: var(--text-muted);
+  margin: 0 0 1rem;
+}
+
+.ms-stop-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.ms-stop-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+}
+
+.ms-stop-row .input-group {
+  flex: 1;
+}
+
+.ms-remove-btn {
+  height: 42px;
+  width: 36px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.ms-remove-btn:hover {
+  background: #fff1f2;
+  color: var(--sg-red);
+  border-color: var(--sg-red);
+}
+
+.ms-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.ms-add-btn {
+  height: 38px;
+  padding: 0 1rem;
+  background: transparent;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius);
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.ms-add-btn:hover {
+  border-color: var(--sg-red);
+  color: var(--sg-red);
+}
+
+/* ── Multi-Stop page: results ────────────────────────────────────────────────── */
+
+.ms-transfer-note {
+  font-size: 0.78rem;
+  color: #1e40af;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius);
+  padding: 0.6rem 0.85rem;
+  margin-bottom: 0.25rem;
+  line-height: 1.5;
+}
+
+/* Expanded multi-segment block inside a journey card */
+.ms-segments {
+  padding-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.ms-segment {
+  border-top: 1px dashed var(--border);
+  padding-top: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.ms-segment:first-child {
+  border-top: none;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.ms-seg-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.ms-seg-title {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.ms-seg-stop-pin {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--sg-red);
+  flex-shrink: 0;
+}
+
+.ms-seg-stop-name {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-heading);
+}
+
+.ms-seg-arrow {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+
+.ms-seg-meta-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.ms-seg-duration {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: #f1f3f5;
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+
+.ms-warn-text {
+  font-size: 0.73rem;
+  font-weight: 600;
+  color: #92400e;
+  background: #fef9c3;
+  padding: 2px 8px;
+  border-radius: 99px;
+  cursor: help;
+  white-space: nowrap;
+}
+
+.ms-warn-badge {
+  background: #fef9c3;
+  color: #92400e;
+  border-color: #fde047;
+}
+
 /* ── Responsive (narrow screens) ─────────────────────────────────────────────── */
 
 @media (max-width: 600px) {
