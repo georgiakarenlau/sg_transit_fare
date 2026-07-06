@@ -40,7 +40,7 @@ function MultiJourneyCard({ journey, index }) {
         <div className="rc-header-right">
           <div className="rc-fare">
             <span className="rc-fare-amount">${fare}</span>
-            <span className="rc-fare-label">Transfer fare</span>
+            <span className="rc-fare-label">Est. total</span>
           </div>
           <span className={`rc-chevron${expanded ? ' rc-chevron--up' : ''}`}>▾</span>
         </div>
@@ -142,6 +142,16 @@ export default function MultiStop() {
     setStops(prev => prev.filter((_, idx) => idx !== i));
   }
 
+  function moveStop(i, dir) {
+    const j = i + dir;
+    if (j < 0 || j >= stops.length) return;
+    setStops(prev => {
+      const next = [...prev];
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  }
+
   async function handlePlan(e) {
     e.preventDefault();
     const trimmed = stops.map(s => s.trim()).filter(Boolean);
@@ -178,11 +188,27 @@ export default function MultiStop() {
           <div className="ms-stop-inputs">
             {stops.map((stop, i) => (
               <div key={i} className="ms-stop-row">
+                <div className="ms-move-btns">
+                  <button
+                    type="button"
+                    className="ms-move-btn"
+                    onClick={() => moveStop(i, -1)}
+                    disabled={i === 0}
+                    aria-label="Move stop up"
+                  >▲</button>
+                  <button
+                    type="button"
+                    className="ms-move-btn"
+                    onClick={() => moveStop(i, 1)}
+                    disabled={i === stops.length - 1}
+                    aria-label="Move stop down"
+                  >▼</button>
+                </div>
                 <LocationInput
                   id={`ms-stop-${i}`}
                   label={i === 0 ? 'From' : i === stops.length - 1 ? 'To' : 'Via'}
                   placeholder={
-                    i === 0             ? 'e.g. Orchard MRT'
+                    i === 0                  ? 'e.g. Orchard MRT'
                     : i === stops.length - 1 ? 'e.g. Changi Airport'
                     : 'e.g. Commonwealth MRT'
                   }
@@ -195,9 +221,7 @@ export default function MultiStop() {
                     className="ms-remove-btn"
                     onClick={() => removeStop(i)}
                     aria-label="Remove this stop"
-                  >
-                    ×
-                  </button>
+                  >×</button>
                 )}
               </div>
             ))}
@@ -262,8 +286,8 @@ export default function MultiStop() {
             </div>
 
             <div className="ms-transfer-note">
-              Fares are <strong>SimplyGo transfer fares</strong> — calculated on total transit distance across all legs.
-              The 45-min tap window applies between consecutive services.
+              Fares shown are the <strong>sum of individual segment fares</strong> — each leg is priced separately
+              since you plan to stop at via points. Prices are indicative adult EZ-Link fares.
             </div>
 
             <div className="route-list">

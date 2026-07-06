@@ -26,7 +26,7 @@ import asyncio
 import itertools
 import math
 import os
-import re as _re
+
 from contextlib import asynccontextmanager
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -637,27 +637,17 @@ def _parse_itinerary(itinerary: dict) -> Route:
 # Multi-route helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
-_BUS_SVC_RE = _re.compile(r'\b(\d+[A-Za-z]?)\b')
-
-
-def _svc_numbers(route: Route) -> set[str]:
-    """Return the set of bus service numbers used in a route (e.g. {'153', '30'})."""
-    nums: set[str] = set()
-    for leg in route.legs:
-        if leg.mode == "BUS":
-            for m in _BUS_SVC_RE.finditer(leg.route or ""):
-                nums.add(m.group(1).upper())
-    return nums
-
 
 def _combined_fare(combo: tuple[Route, ...]) -> FareInfo:
     """
-    Compute the SimplyGo transfer fare for a multi-segment combination.
+    Sum individual segment fares for a multi-stop journey.
 
-    SimplyGo charges a single fare on the total cumulative transit distance
-    across all connected services within the 45-minute tap window.
+    Each segment is priced independently because the user plans to stop at
+    via points — the SimplyGo 45-min transfer window does not apply across
+    planned stops.
     """
-    total_km = sum(seg.fare.transit_distance_km for seg in combo)
+    total_cents = sum(seg.fare.fare_cents for seg in combo)
+    total_km    = sum(seg.fare.transit_distance_km for seg in combo)
 
     has_mrt = any(
         any(leg.mode in ("SUBWAY", "TRAM") for leg in seg.legs)
@@ -675,12 +665,11 @@ def _combined_fare(combo: tuple[Route, ...]) -> FareInfo:
     else:
         jtype = JourneyType.BUS
 
-    fare = calculate_fare(max(total_km, 0.1), jtype)
     return FareInfo(
-        fare_sgd=fare.fare_sgd,
-        fare_cents=fare.fare_cents,
-        journey_type=fare.journey_type.value,
-        transit_distance_km=fare.distance_km,
+        fare_sgd=round(total_cents / 100, 2),
+        fare_cents=total_cents,
+        journey_type=jtype.value,
+        transit_distance_km=round(total_km, 3),
     )
 
 
@@ -864,12 +853,6 @@ async def multi_route(req: MultiRouteRequest):
     journeys: list[MultiJourneyResponse] = []
 
     for combo in itertools.product(*pair_routes_list):
-        all_bus_svcs: list[str] = []
-        for seg in combo:
-            all_bus_svcs.extend(_svc_numbers(seg))
-        if len(all_bus_svcs) != len(set(all_bus_svcs)):
-            continue  # same bus service used more than once
-
         total_fare      = _combined_fare(combo)
         total_duration  = sum(seg.duration_minutes for seg in combo)
         total_transfers = sum(seg.transfers for seg in combo)
