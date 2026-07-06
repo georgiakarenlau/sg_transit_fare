@@ -640,14 +640,13 @@ def _parse_itinerary(itinerary: dict) -> Route:
 
 def _combined_fare(combo: tuple[Route, ...]) -> FareInfo:
     """
-    Sum individual segment fares for a multi-stop journey.
+    Compute the SimplyGo transfer fare for a multi-segment combination.
 
-    Each segment is priced independently because the user plans to stop at
-    via points — the SimplyGo 45-min transfer window does not apply across
-    planned stops.
+    One fare is charged on the total cumulative transit distance across all
+    segments, provided the rider taps into each connecting service within
+    45 minutes and the total journey stays under 2 hours.
     """
-    total_cents = sum(seg.fare.fare_cents for seg in combo)
-    total_km    = sum(seg.fare.transit_distance_km for seg in combo)
+    total_km = sum(seg.fare.transit_distance_km for seg in combo)
 
     has_mrt = any(
         any(leg.mode in ("SUBWAY", "TRAM") for leg in seg.legs)
@@ -665,11 +664,12 @@ def _combined_fare(combo: tuple[Route, ...]) -> FareInfo:
     else:
         jtype = JourneyType.BUS
 
+    fare = calculate_fare(max(total_km, 0.1), jtype)
     return FareInfo(
-        fare_sgd=round(total_cents / 100, 2),
-        fare_cents=total_cents,
-        journey_type=jtype.value,
-        transit_distance_km=round(total_km, 3),
+        fare_sgd=fare.fare_sgd,
+        fare_cents=fare.fare_cents,
+        journey_type=fare.journey_type.value,
+        transit_distance_km=fare.distance_km,
     )
 
 

@@ -40,7 +40,7 @@ function MultiJourneyCard({ journey, index }) {
         <div className="rc-header-right">
           <div className="rc-fare">
             <span className="rc-fare-amount">${fare}</span>
-            <span className="rc-fare-label">Est. total</span>
+            <span className="rc-fare-label">Transfer fare</span>
           </div>
           <span className={`rc-chevron${expanded ? ' rc-chevron--up' : ''}`}>▾</span>
         </div>
@@ -286,8 +286,9 @@ export default function MultiStop() {
             </div>
 
             <div className="ms-transfer-note">
-              Fares shown are the <strong>sum of individual segment fares</strong> — each leg is priced separately
-              since you plan to stop at via points. Prices are indicative adult EZ-Link fares.
+              Fare is calculated on <strong>total transit distance</strong> across all legs (SimplyGo transfer pricing).
+              Applies if you tap into each connecting service within <strong>45 min</strong> of alighting the previous,
+              and the whole journey is under <strong>2 hours</strong>.
             </div>
 
             <div className="route-list">
