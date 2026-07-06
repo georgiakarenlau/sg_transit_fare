@@ -3,43 +3,24 @@ import { useState, useEffect } from 'react';
 // ── MRT colour maps ───────────────────────────────────────────────────────────
 
 const MRT_SHORT_COLORS = {
-  'NS': '#D42E12',
-  'EW': '#009645',
-  'CG': '#009645',
-  'CC': '#FA9E0D',
-  'CE': '#FA9E0D',
-  'DT': '#005EC4',
-  'TE': '#9D5B25',
-  'NE': '#9900AA',
-  'BP': '#748477',
-  'SK': '#9900AA',
-  'PU': '#9900AA',
+  'NS': '#D42E12', 'EW': '#009645', 'CG': '#009645',
+  'CC': '#FA9E0D', 'CE': '#FA9E0D', 'DT': '#005EC4',
+  'TE': '#9D5B25', 'NE': '#9900AA', 'BP': '#748477',
+  'SK': '#9900AA', 'PU': '#9900AA',
 };
 
 const MRT_CHIP_COLORS = {
-  'NORTH SOUTH LINE':        '#D42E12',
-  'EAST WEST LINE':          '#009645',
-  'CIRCLE LINE':             '#FA9E0D',
-  'DOWNTOWN LINE':           '#005EC4',
-  'THOMSON-EAST COAST LINE': '#9D5B25',
-  'NORTH EAST LINE':         '#9900AA',
-  'BUKIT PANJANG':           '#748477',
-  'SENGKANG':                '#9900AA',
-  'PUNGGOL':                 '#9900AA',
+  'NORTH SOUTH LINE': '#D42E12', 'EAST WEST LINE': '#009645',
+  'CIRCLE LINE': '#FA9E0D', 'DOWNTOWN LINE': '#005EC4',
+  'THOMSON-EAST COAST LINE': '#9D5B25', 'NORTH EAST LINE': '#9900AA',
+  'BUKIT PANJANG': '#748477', 'SENGKANG': '#9900AA', 'PUNGGOL': '#9900AA',
 };
 
 const MRT_LINE_NAMES = {
-  'NS': 'North South Line',
-  'EW': 'East West Line',
-  'CG': 'East West Line',
-  'CC': 'Circle Line',
-  'CE': 'Circle Line',
-  'DT': 'Downtown Line',
-  'TE': 'Thomson–East Coast Line',
-  'NE': 'North East Line',
-  'BP': 'Bukit Panjang LRT',
-  'SK': 'Sengkang LRT',
-  'PU': 'Punggol LRT',
+  'NS': 'North South Line', 'EW': 'East West Line', 'CG': 'East West Line',
+  'CC': 'Circle Line',      'CE': 'Circle Line',    'DT': 'Downtown Line',
+  'TE': 'Thomson–East Coast Line', 'NE': 'North East Line',
+  'BP': 'Bukit Panjang LRT', 'SK': 'Sengkang LRT',  'PU': 'Punggol LRT',
 };
 
 function getMrtColor(route) {
@@ -85,17 +66,47 @@ const WalkIcon = () => (
   </svg>
 );
 
+// ── StopList ──────────────────────────────────────────────────────────────────
+// Vertical transit-map stop visualization (Google Maps style).
+
+function StopList({ from, stops, to, color }) {
+  const all = [from, ...stops, to];
+  return (
+    <div className="rc-stop-list">
+      {all.map((name, i) => {
+        const isLast     = i === all.length - 1;
+        const isTerminal = i === 0 || isLast;
+        return (
+          <div key={i} className={`rc-stop-row${isTerminal ? ' rc-stop-row--terminal' : ''}`}>
+            <div className="rc-stop-connector">
+              <div
+                className="rc-stop-dot"
+                style={isTerminal
+                  ? { background: color }
+                  : { background: '#fff', borderColor: color }}
+              />
+              {!isLast && <div className="rc-stop-line" style={{ background: color }} />}
+            </div>
+            <span className="rc-stop-name">{name}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ── LegDetail ─────────────────────────────────────────────────────────────────
+// Level-2 drill-down: click a transit leg to reveal all intermediate stops.
 
 function LegDetail({ leg }) {
+  const [showStops, setShowStops] = useState(false);
+
   if (leg.mode === 'WALK') {
     const metres = Math.round(leg.distance_km * 1000);
     const mins   = Math.round(leg.duration_minutes);
     return (
       <div className="rc-dl-leg rc-dl-leg--walk">
-        <div className="rc-dl-icon rc-dl-icon--walk">
-          <WalkIcon />
-        </div>
+        <div className="rc-dl-icon rc-dl-icon--walk"><WalkIcon /></div>
         <div className="rc-dl-body">
           <span className="rc-dl-title rc-dl-title--walk">Walk</span>
           <span className="rc-dl-meta">{metres} m · {mins} min</span>
@@ -104,20 +115,23 @@ function LegDetail({ leg }) {
     );
   }
 
-  const isMrt  = leg.mode === 'SUBWAY' || leg.mode === 'TRAM';
-  const color  = isMrt ? (getMrtColor(leg.route) ?? '#64748b') : '#15803d';
-  const code   = (leg.route ?? '').toUpperCase().trim().slice(0, 2);
-  const title  = isMrt ? getMrtLineName(leg.route) : `Bus ${cleanBusRoute(leg.route)}`;
-  const stops  = leg.intermediate_stops ?? 0;
-  const mins   = Math.round(leg.duration_minutes);
+  const isMrt     = leg.mode === 'SUBWAY' || leg.mode === 'TRAM';
+  const color     = isMrt ? (getMrtColor(leg.route) ?? '#64748b') : '#15803d';
+  const code      = (leg.route ?? '').toUpperCase().trim().slice(0, 2);
+  const title     = isMrt ? getMrtLineName(leg.route) : `Bus ${cleanBusRoute(leg.route)}`;
+  const stopNames = leg.intermediate_stop_names ?? [];
+  const stopCount = stopNames.length;
+  const mins      = Math.round(leg.duration_minutes);
+
+  function handleClick(e) {
+    e.stopPropagation();
+    setShowStops(s => !s);
+  }
 
   return (
-    <div className="rc-dl-leg">
+    <div className="rc-dl-leg rc-dl-leg--clickable" onClick={handleClick}>
       <div className="rc-dl-icon" style={{ background: color }}>
-        {isMrt
-          ? <span className="rc-dl-icon-text">{code}</span>
-          : <BusIcon />
-        }
+        {isMrt ? <span className="rc-dl-icon-text">{code}</span> : <BusIcon />}
       </div>
       <div className="rc-dl-body">
         <span className="rc-dl-title" style={{ color }}>{title}</span>
@@ -127,9 +141,19 @@ function LegDetail({ leg }) {
           <span className="rc-dl-stop-name">{leg.to_stop}</span>
         </div>
         <span className="rc-dl-meta">
-          {stops} stop{stops !== 1 ? 's' : ''} · {mins} min
+          {stopCount} stop{stopCount !== 1 ? 's' : ''} · {mins} min
         </span>
+
+        {showStops && (
+          <StopList
+            from={leg.from_stop}
+            stops={stopNames}
+            to={leg.to_stop}
+            color={color}
+          />
+        )}
       </div>
+      <span className={`rc-dl-chevron${showStops ? ' rc-dl-chevron--up' : ''}`}>▾</span>
     </div>
   );
 }
@@ -139,6 +163,7 @@ function LegDetail({ leg }) {
 export default function RouteCard({ route, index, isSelected, onSelect, badge }) {
   const [expanded, setExpanded] = useState(false);
 
+  // Collapse leg detail when another card is selected.
   useEffect(() => {
     if (!isSelected) setExpanded(false);
   }, [isSelected]);
@@ -209,7 +234,7 @@ export default function RouteCard({ route, index, isSelected, onSelect, badge })
         <span className="rc-stop-pin rc-stop-pin--b">B</span>
       </div>
 
-      {/* ── Expanded detail ─────────────────────────────────────────────── */}
+      {/* ── Level-1 expanded legs (click each leg for level-2 stops) ────── */}
       {expanded && (
         <div className="rc-detail">
           {legs.map((leg, i) => (

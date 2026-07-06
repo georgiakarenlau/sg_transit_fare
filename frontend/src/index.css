@@ -596,6 +596,29 @@ h1, h2, h3 {
   opacity: 0.72;
 }
 
+.rc-dl-leg--clickable {
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: background 0.12s;
+}
+
+.rc-dl-leg--clickable:hover {
+  background: #f4f5f7;
+}
+
+.rc-dl-chevron {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  transition: transform 0.2s ease;
+  align-self: flex-start;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.rc-dl-chevron--up {
+  transform: rotate(180deg);
+}
+
 .rc-dl-icon {
   width: 30px;
   height: 30px;
@@ -663,6 +686,67 @@ h1, h2, h3 {
 .rc-dl-meta {
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+/* ── Stop list (level-2 drill-down) ─────────────────────────────────────────── */
+
+.rc-stop-list {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.rc-stop-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  min-height: 18px;
+}
+
+.rc-stop-connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 12px;
+  flex-shrink: 0;
+  align-self: stretch;
+}
+
+.rc-stop-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.rc-stop-row:not(.rc-stop-row--terminal) .rc-stop-dot {
+  width: 7px;
+  height: 7px;
+  border-width: 1.5px;
+  margin-top: 3px;
+}
+
+.rc-stop-line {
+  width: 2px;
+  flex: 1;
+  min-height: 6px;
+  opacity: 0.25;
+  margin-top: 2px;
+}
+
+.rc-stop-name {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  padding-bottom: 4px;
+  line-height: 1.35;
+}
+
+.rc-stop-row--terminal .rc-stop-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text);
 }
 
 /* ── Map stop labels (no box — floating text with halo) ─────────────────────── */
