@@ -38,7 +38,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from fare_calculator import JourneyType, calculate_fare
+from fare_calculator import JourneyType, calculate_fare, mrt_fare_distance_km
 from bus_finder import fetch_all_bus_routes, find_services_between, get_arrivals_at
 from bus_stops import fetch_all_bus_stops, search_stops
 
@@ -582,24 +582,20 @@ def _parse_itinerary(itinerary: dict) -> Route:
     """Convert a single OneMap itinerary dict into our Route response model."""
     raw_legs = itinerary.get("legs", [])
 
+    # Parse legs first so station names are available for the MRT table lookup.
     parsed_legs: list[RouteLeg] = []
-    transit_distance_m = _compute_fare_distance_m(raw_legs)
-
     for leg in raw_legs:
-        mode      = leg.get("mode", "WALK")
+        mode       = leg.get("mode", "WALK")
         distance_m = leg.get("distance", 0.0)
         duration_s = leg.get("duration", 0.0)
         from_info  = leg.get("from", {})
         to_info    = leg.get("to",   {})
-
         route_label = leg.get("route") or leg.get("routeId") or None
-
         encoded_geom = leg.get("legGeometry", {}).get("points", "")
         try:
             geometry = _decode_polyline(encoded_geom) if encoded_geom else []
         except Exception:
             geometry = []
-
         parsed_legs.append(RouteLeg(
             mode=mode,
             route=route_label,
@@ -612,9 +608,21 @@ def _parse_itinerary(itinerary: dict) -> Route:
         ))
 
     journey_type = _classify_journey(raw_legs)
-    transit_distance_km = transit_distance_m / 1000
 
-    # Guard against edge case where API returns zero transit distance.
+    # For MRT-only itineraries use the LTA station distance table so the fare
+    # matches the official LTA calculator.  Fall back to the OneMap-derived
+    # distance if any station is absent from the table (e.g. new stations or
+    # LRT lines not yet in the table).
+    transit_modes = {leg.mode for leg in parsed_legs if leg.mode != "WALK"}
+    if transit_modes and transit_modes <= {"SUBWAY", "TRAM"}:
+        table_dist = mrt_fare_distance_km(parsed_legs)
+        transit_distance_km = (
+            table_dist if table_dist is not None
+            else _compute_fare_distance_m(raw_legs) / 1000
+        )
+    else:
+        transit_distance_km = _compute_fare_distance_m(raw_legs) / 1000
+
     fare_distance_km = max(transit_distance_km, 0.1)
     fare = calculate_fare(fare_distance_km, journey_type)
 

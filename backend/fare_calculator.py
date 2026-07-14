@@ -130,3 +130,271 @@ def calculate_fare(
 
 # Backward-compatible alias.
 calculate_adult_ezlink_fare = calculate_fare
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# LTA MRT station fare distance table
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# Cumulative distance (km) from the first station on each line.
+# Source: LTA published MRT station spacing data.
+#
+# Fare distance between any two stations on the same line = |d_B − d_A|.
+# For cross-line journeys each line segment is looked up independently and
+# the results summed, matching LTA's internal calculation.
+#
+# LRT lines (BP/SK/PU) are omitted — the table returns None for those so the
+# caller falls back to the OneMap-derived distance.
+
+_MRT_DISTANCES: dict[str, dict[str, float]] = {
+
+    # ── East West Line (EWL) — from Pasir Ris ────────────────────────────────
+    "EW": {
+        "PASIR RIS":        0.0,
+        "TAMPINES":         2.0,
+        "SIMEI":            3.4,
+        "TANAH MERAH":      5.3,
+        "BEDOK":            7.1,
+        "KEMBANGAN":        8.5,
+        "EUNOS":            9.9,
+        "PAYA LEBAR":      11.1,
+        "ALJUNIED":        12.2,
+        "KALLANG":         13.3,
+        "LAVENDER":        14.4,
+        "BUGIS":           15.6,
+        "CITY HALL":       16.8,
+        "RAFFLES PLACE":   17.6,
+        "TANJONG PAGAR":   18.6,
+        "OUTRAM PARK":     19.7,
+        "TIONG BAHRU":     20.7,
+        "REDHILL":         21.8,
+        "QUEENSTOWN":      23.1,
+        "COMMONWEALTH":    24.1,
+        "BUONA VISTA":     25.1,
+        "DOVER":           26.0,
+        "CLEMENTI":        27.2,
+        "JURONG EAST":     29.1,
+        "CHINESE GARDEN":  30.1,
+        "LAKESIDE":        31.7,
+        "BOON LAY":        32.9,
+        "PIONEER":         34.4,
+        "JOO KOON":        36.0,
+        "GUL CIRCLE":      37.4,
+        "TUAS CRESCENT":   38.5,
+        "TUAS WEST ROAD":  39.4,
+        "TUAS LINK":       40.6,
+    },
+
+    # ── Changi Airport Branch (CGL) — from Tanah Merah ───────────────────────
+    "CG": {
+        "TANAH MERAH":     0.0,
+        "EXPO":            2.0,
+        "CHANGI AIRPORT":  3.6,
+    },
+
+    # ── North South Line (NSL) — from Jurong East ────────────────────────────
+    "NS": {
+        "JURONG EAST":       0.0,
+        "BUKIT BATOK":       2.5,
+        "BUKIT GOMBAK":      3.9,
+        "CHOA CHU KANG":     5.2,
+        "YEW TEE":           6.7,
+        "KRANJI":            8.6,
+        "MARSILING":        10.4,
+        "WOODLANDS":        11.8,
+        "ADMIRALTY":        13.1,
+        "SEMBAWANG":        14.4,
+        "CANBERRA":         15.3,
+        "YISHUN":           16.7,
+        "KHATIB":           18.2,
+        "YIO CHU KANG":     19.6,
+        "ANG MO KIO":       21.2,
+        "BISHAN":           22.9,
+        "BRADDELL":         24.2,
+        "TOA PAYOH":        25.5,
+        "NOVENA":           26.9,
+        "NEWTON":           27.8,
+        "ORCHARD":          29.3,
+        "SOMERSET":         30.3,
+        "DHOBY GHAUT":      31.4,
+        "CITY HALL":        32.3,
+        "RAFFLES PLACE":    33.2,
+        "MARINA BAY":       34.6,
+        "MARINA SOUTH PIER": 35.9,
+    },
+
+    # ── North East Line (NEL) — from HarbourFront ────────────────────────────
+    "NE": {
+        "HARBOURFRONT":  0.0,
+        "OUTRAM PARK":   1.9,
+        "CHINATOWN":     2.9,
+        "CLARKE QUAY":   4.1,
+        "DHOBY GHAUT":   5.2,
+        "LITTLE INDIA":  6.5,
+        "FARRER PARK":   7.5,
+        "BOON KENG":     8.5,
+        "POTONG PASIR":  9.7,
+        "WOODLEIGH":    10.9,
+        "SERANGOON":    12.1,
+        "KOVAN":        13.4,
+        "HOUGANG":      14.8,
+        "BUANGKOK":     16.2,
+        "SENGKANG":     17.5,
+        "PUNGGOL":      20.0,
+    },
+
+    # ── Circle Line (CCL) — from Dhoby Ghaut, clockwise ──────────────────────
+    "CC": {
+        "DHOBY GHAUT":     0.0,
+        "BRAS BASAH":      0.9,
+        "ESPLANADE":       1.8,
+        "PROMENADE":       2.9,
+        "NICOLL HIGHWAY":  4.0,
+        "STADIUM":         5.0,
+        "MOUNTBATTEN":     6.1,
+        "DAKOTA":          7.2,
+        "PAYA LEBAR":      8.5,
+        "MACPHERSON":      9.8,
+        "TAI SENG":       11.2,
+        "BARTLEY":        12.4,
+        "SERANGOON":      13.6,
+        "LORONG CHUAN":   14.8,
+        "BISHAN":         16.2,
+        "MARYMOUNT":      17.5,
+        "CALDECOTT":      18.7,
+        "BOTANIC GARDENS": 21.0,
+        "FARRER ROAD":    22.3,
+        "HOLLAND VILLAGE": 23.5,
+        "BUONA VISTA":    24.9,
+        "ONE-NORTH":      25.9,
+        "KENT RIDGE":     27.1,
+        "HAW PAR VILLA":  28.1,
+        "PASIR PANJANG":  29.2,
+        "LABRADOR PARK":  30.4,
+        "TELOK BLANGAH":  31.4,
+        "HARBOURFRONT":   32.7,
+    },
+
+    # ── Circle Line Extension (CE) — from Promenade ──────────────────────────
+    "CE": {
+        "PROMENADE":  0.0,
+        "BAYFRONT":   1.0,
+        "MARINA BAY": 2.4,
+    },
+
+    # ── Downtown Line (DTL) — from Bukit Panjang ─────────────────────────────
+    "DT": {
+        "BUKIT PANJANG":    0.0,
+        "CASHEW":           1.6,
+        "HILLVIEW":         2.9,
+        "BEAUTY WORLD":     4.7,
+        "KING ALBERT PARK": 5.7,
+        "SIXTH AVENUE":     6.6,
+        "TAN KAH KEE":      7.6,
+        "BOTANIC GARDENS":  8.7,
+        "STEVENS":          9.7,
+        "NEWTON":          10.9,
+        "LITTLE INDIA":    12.1,
+        "ROCHOR":          13.0,
+        "BUGIS":           13.9,
+        "PROMENADE":       15.2,
+        "BAYFRONT":        16.2,
+        "DOWNTOWN":        17.2,
+        "TELOK AYER":      18.2,
+        "CHINATOWN":       18.9,
+        "FORT CANNING":    19.7,
+        "BENDEMEER":       20.9,
+        "GEYLANG BAHRU":   21.8,
+        "MATTAR":          22.8,
+        "MACPHERSON":      23.8,
+        "UBI":             24.9,
+        "KAKI BUKIT":      26.1,
+        "BEDOK NORTH":     27.3,
+        "BEDOK RESERVOIR": 28.5,
+        "TAMPINES WEST":   29.7,
+        "TAMPINES":        31.0,
+        "TAMPINES EAST":   32.0,
+        "UPPER CHANGI":    33.1,
+        "EXPO":            34.4,
+    },
+
+    # ── Thomson-East Coast Line (TEL) — from Woodlands North ─────────────────
+    "TE": {
+        "WOODLANDS NORTH":     0.0,
+        "WOODLANDS":           1.5,
+        "WOODLANDS SOUTH":     2.7,
+        "SPRINGLEAF":          4.4,
+        "LENTOR":              5.7,
+        "MAYFLOWER":           6.8,
+        "BRIGHT HILL":         8.1,
+        "UPPER THOMSON":       9.3,
+        "CALDECOTT":          10.7,
+        "STEVENS":            13.2,
+        "NAPIER":             14.3,
+        "ORCHARD BOULEVARD":  15.3,
+        "ORCHARD":            16.5,
+        "GREAT WORLD":        17.7,
+        "HAVELOCK":           18.7,
+        "OUTRAM PARK":        19.7,
+        "MAXWELL":            20.5,
+        "SHENTON WAY":        21.5,
+        "MARINA BAY":         22.6,
+        "GARDENS BY THE BAY": 23.9,
+        "TANJONG RHU":        24.9,
+        "KATONG PARK":        25.9,
+        "TANJONG KATONG":     26.9,
+        "MARINE PARADE":      27.9,
+        "MARINE TERRACE":     28.8,
+        "SIGLAP":             29.8,
+        "BAYSHORE":           30.8,
+        "BEDOK SOUTH":        31.8,
+        "SUNGEI BEDOK":       32.9,
+    },
+}
+
+_MRT_NAME_SUFFIXES: tuple[str, ...] = (
+    " MRT INTERCHANGE",
+    " MRT STATION",
+    " MRT",
+    " LRT INTERCHANGE",
+    " LRT STATION",
+    " STATION",
+    " INTERCHANGE",
+)
+
+
+def _station_key(raw: str) -> str:
+    """Normalise an MRT station name to match the keys in _MRT_DISTANCES."""
+    name = raw.upper().strip()
+    for suffix in _MRT_NAME_SUFFIXES:
+        if name.endswith(suffix):
+            name = name[: -len(suffix)].strip()
+            break
+    return name
+
+
+def mrt_fare_distance_km(legs) -> float | None:
+    """
+    Compute the LTA fare distance (km) for a sequence of MRT/LRT legs using
+    the hardcoded station distance table.
+
+    Each item in *legs* must expose .mode, .route, .from_stop, .to_stop.
+    Returns None if any station or line is absent from the table so the
+    caller can fall back to the OneMap-derived distance.
+    """
+    total = 0.0
+    for leg in legs:
+        if leg.mode not in ("SUBWAY", "TRAM"):
+            continue
+        line  = (leg.route or "").upper().strip()[:2]
+        table = _MRT_DISTANCES.get(line)
+        if table is None:
+            return None
+        from_key = _station_key(leg.from_stop)
+        to_key   = _station_key(leg.to_stop)
+        d_from   = table.get(from_key)
+        d_to     = table.get(to_key)
+        if d_from is None or d_to is None:
+            return None
+        total += abs(d_to - d_from)
+    return total
