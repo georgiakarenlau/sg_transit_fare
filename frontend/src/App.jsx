@@ -249,6 +249,12 @@ export default function App() {
 
   // ── Search ──────────────────────────────────────────────────────────────────
 
+  function handleSwap() {
+    setFromInput(toInput);
+    setToInput(fromInput);
+    setRouteData(null);
+  }
+
   async function handleSearch(e) {
     e.preventDefault();
     const from = fromInput.trim();
@@ -328,6 +334,14 @@ export default function App() {
                 value={fromInput}
                 onChange={setFromInput}
               />
+
+              <button
+                type="button"
+                className="swap-btn"
+                onClick={handleSwap}
+                aria-label="Swap From and To"
+                title="Swap destinations"
+              >⇅</button>
 
               <LocationInput
                 id="inp-to"

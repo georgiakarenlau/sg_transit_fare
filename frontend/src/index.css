@@ -173,6 +173,30 @@ h1, h2, h3 {
   box-shadow: 0 0 0 3px var(--sg-red-soft);
 }
 
+.swap-btn {
+  height: 36px;
+  width: 36px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  align-self: flex-end;
+  margin-bottom: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.swap-btn:hover {
+  background: var(--sg-red-soft);
+  color: var(--sg-red);
+  border-color: var(--sg-red);
+}
+
 .search-btn {
   height: 42px;
   padding: 0 1.4rem;
