@@ -14,6 +14,7 @@ Fares are revised periodically. Always verify against the PTC website
 before deploying to production.
 """
 
+import heapq
 from dataclasses import dataclass
 from enum import Enum
 
@@ -224,23 +225,26 @@ _MRT_DISTANCES: dict[str, dict[str, float]] = {
     },
 
     # ── North East Line (NEL) — from HarbourFront ────────────────────────────
+    # Note: HarbourFront→Outram Park tunnel is physically ~3.6 km (longer than
+    # it appears on a map because the station is at the southern coastal tip).
+    # All other inter-station spacings are unchanged from original estimates.
     "NE": {
         "HARBOURFRONT":  0.0,
-        "OUTRAM PARK":   1.9,
-        "CHINATOWN":     2.9,
-        "CLARKE QUAY":   4.1,
-        "DHOBY GHAUT":   5.2,
-        "LITTLE INDIA":  6.5,
-        "FARRER PARK":   7.5,
-        "BOON KENG":     8.5,
-        "POTONG PASIR":  9.7,
-        "WOODLEIGH":    10.9,
-        "SERANGOON":    12.1,
-        "KOVAN":        13.4,
-        "HOUGANG":      14.8,
-        "BUANGKOK":     16.2,
-        "SENGKANG":     17.5,
-        "PUNGGOL":      20.0,
+        "OUTRAM PARK":   3.6,
+        "CHINATOWN":     4.6,
+        "CLARKE QUAY":   5.8,
+        "DHOBY GHAUT":   6.9,
+        "LITTLE INDIA":  8.2,
+        "FARRER PARK":   9.2,
+        "BOON KENG":    10.2,
+        "POTONG PASIR": 11.4,
+        "WOODLEIGH":    12.6,
+        "SERANGOON":    13.8,
+        "KOVAN":        15.1,
+        "HOUGANG":      16.5,
+        "BUANGKOK":     17.9,
+        "SENGKANG":     19.2,
+        "PUNGGOL":      21.7,
     },
 
     # ── Circle Line (CCL) — from Dhoby Ghaut, clockwise ──────────────────────
@@ -352,6 +356,53 @@ _MRT_DISTANCES: dict[str, dict[str, float]] = {
     },
 }
 
+# ──────────────────────────────────────────────────────────────────────────────
+# MRT network graph for shortest-path fare distance (Dijkstra)
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# LTA charges based on the shortest-path fare distance through the network,
+# not the actual route taken. We build an adjacency list from _MRT_DISTANCES
+# (adjacent stations on each line share an edge) and run Dijkstra between the
+# journey origin and destination. Interchange stations are a single node, so
+# transfers are handled automatically.
+
+def _build_mrt_graph() -> dict[str, list[tuple[str, float]]]:
+    graph: dict[str, list[tuple[str, float]]] = {}
+    for stations in _MRT_DISTANCES.values():
+        ordered = sorted(stations.items(), key=lambda x: x[1])
+        for i in range(len(ordered) - 1):
+            a, da = ordered[i]
+            b, db = ordered[i + 1]
+            w = round(db - da, 3)
+            graph.setdefault(a, []).append((b, w))
+            graph.setdefault(b, []).append((a, w))
+    return graph
+
+
+_MRT_GRAPH: dict[str, list[tuple[str, float]]] = _build_mrt_graph()
+
+
+def _mrt_shortest_fare_km(from_key: str, to_key: str) -> float | None:
+    if from_key not in _MRT_GRAPH or to_key not in _MRT_GRAPH:
+        return None
+    if from_key == to_key:
+        return 0.0
+    dist: dict[str, float] = {from_key: 0.0}
+    heap: list[tuple[float, str]] = [(0.0, from_key)]
+    while heap:
+        d, u = heapq.heappop(heap)
+        if u == to_key:
+            return round(d, 3)
+        if d > dist.get(u, float("inf")):
+            continue
+        for v, w in _MRT_GRAPH.get(u, []):
+            nd = d + w
+            if nd < dist.get(v, float("inf")):
+                dist[v] = nd
+                heapq.heappush(heap, (nd, v))
+    return None
+
+
 _MRT_NAME_SUFFIXES: tuple[str, ...] = (
     " MRT INTERCHANGE",
     " MRT STATION",
@@ -375,26 +426,19 @@ def _station_key(raw: str) -> str:
 
 def mrt_fare_distance_km(legs) -> float | None:
     """
-    Compute the LTA fare distance (km) for a sequence of MRT/LRT legs using
-    the hardcoded station distance table.
+    Compute the LTA fare distance (km) for a sequence of MRT/LRT legs.
+
+    Uses Dijkstra's shortest-path over the MRT network graph, matching LTA's
+    approach of charging on the minimum-distance network path between origin
+    and destination regardless of which physical route was taken.
 
     Each item in *legs* must expose .mode, .route, .from_stop, .to_stop.
-    Returns None if any station or line is absent from the table so the
+    Returns None if origin/destination are absent from the graph so the
     caller can fall back to the OneMap-derived distance.
     """
-    total = 0.0
-    for leg in legs:
-        if leg.mode not in ("SUBWAY", "TRAM"):
-            continue
-        line  = (leg.route or "").upper().strip()[:2]
-        table = _MRT_DISTANCES.get(line)
-        if table is None:
-            return None
-        from_key = _station_key(leg.from_stop)
-        to_key   = _station_key(leg.to_stop)
-        d_from   = table.get(from_key)
-        d_to     = table.get(to_key)
-        if d_from is None or d_to is None:
-            return None
-        total += abs(d_to - d_from)
-    return total
+    transit_legs = [leg for leg in legs if leg.mode in ("SUBWAY", "TRAM")]
+    if not transit_legs:
+        return None
+    from_key = _station_key(transit_legs[0].from_stop)
+    to_key   = _station_key(transit_legs[-1].to_stop)
+    return _mrt_shortest_fare_km(from_key, to_key)
